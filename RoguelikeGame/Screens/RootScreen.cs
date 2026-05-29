@@ -7,9 +7,9 @@ namespace RoguelikeGame;
 
 internal class RootScreen : ScreenSurface
 {
-    private const int MapWidth = 40;
-    private const int MapHeight = 24;
-    private static readonly Color FloorBackground = new(40, 40, 48);
+    private const int MapWidth = 20;
+    private const int MapHeight = 12;
+    private static readonly Color FloorBackground = new(44, 44, 54);
 
     private readonly ScreenSurface _status;
     private readonly Dungeon _dungeon;
@@ -30,7 +30,7 @@ internal class RootScreen : ScreenSurface
 
         // Statuslinje som eget barn, med standard tekst-font, plassert nederst.
         _status = new ScreenSurface(80, 1) { UsePixelPositioning = true };
-        _status.Position = new Point(0, MapHeight * 16);
+        _status.Position = new Point(0, MapHeight * GameFonts.Tiles.GlyphHeight);
         Children.Add(_status);
 
         _dungeon = new Dungeon(gridWidth: 5, gridHeight: 5, roomWidth: MapWidth, roomHeight: MapHeight);
