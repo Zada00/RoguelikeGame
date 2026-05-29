@@ -1,0 +1,11 @@
+{
+    "$type": "SadConsole.SadFont, SadConsole",
+    "Name": "RogueTiles",
+    "FilePath": "tiles.png",
+    "GlyphHeight": 16,
+    "GlyphWidth": 16,
+    "GlyphPadding": 0,
+    "Columns": 8,
+    "SolidGlyphIndex": 0,
+    "IsSadExtended": false
+}

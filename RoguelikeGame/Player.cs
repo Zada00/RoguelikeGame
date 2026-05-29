@@ -7,12 +7,17 @@ internal class Player
     public int X { get; set; }
     public int Y { get; set; }
 
-    // '@' er den klassiske roguelike-spilleren.
-    public int Glyph { get; } = '@';
-    public Color Color { get; } = Color.Yellow;
+    // Spilleren peker nå på en valgt Character, og henter utseende derfra.
+    public Character Character { get; }
+    public int Hp { get; set; }
 
-    public Player(int x, int y)
+    public int Glyph => Character.Glyph;
+    public Color Color => Character.Color;
+
+    public Player(Character character, int x, int y)
     {
+        Character = character;
+        Hp = character.MaxHp;
         X = x;
         Y = y;
     }

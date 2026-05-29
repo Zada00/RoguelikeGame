@@ -9,24 +9,25 @@ internal class RootScreen : ScreenSurface
 {
     private readonly Dungeon _dungeon;
     private readonly Player _player;
+    private readonly Random _rng = new();
 
-    // --- Fade-tilstand ---
     private enum FadeState { None, Out, In }
     private FadeState _fade = FadeState.None;
     private double _fadeTimer;
     private Direction _pendingDoor;
-    private const double FadeDuration = 0.5; // sekunder hver vei
+    private const double FadeDuration = 0.2;
 
-    public RootScreen() : base(80, 25)
+    // Konstruktøren tar nå imot den valgte helten.
+    public RootScreen(Character character) : base(80, 25)
     {
-        _dungeon = new Dungeon(gridWidth: 5, gridHeight: 5, roomWidth: 80, roomHeight: 25);
-        _player = new Player(40, 12);
+        // Rommet er 24 høyt, så nederste rad (24) er ledig til statuslinja.
+        _dungeon = new Dungeon(gridWidth: 5, gridHeight: 5, roomWidth: 80, roomHeight: 24);
+        _player = new Player(character, 40, 12);
         Render();
     }
 
     public override bool ProcessKeyboard(Keyboard keyboard)
     {
-        // Mens en overgang pågår, ignorer all input.
         if (_fade != FadeState.None) return true;
 
         if (keyboard.IsKeyPressed(Keys.M))
@@ -37,11 +38,28 @@ internal class RootScreen : ScreenSurface
             return true;
         }
 
+        // Magikerens teleport.
+        if (_player.Character.Ability == Ability.Blink && keyboard.IsKeyPressed(Keys.Space))
+        {
+            Blink();
+            return true;
+        }
+
         int dx = 0, dy = 0;
+
         if (keyboard.IsKeyPressed(Keys.Up)) dy = -1;
         else if (keyboard.IsKeyPressed(Keys.Down)) dy = 1;
         else if (keyboard.IsKeyPressed(Keys.Left)) dx = -1;
         else if (keyboard.IsKeyPressed(Keys.Right)) dx = 1;
+
+        // Tyvens diagonale bevegelse (Q/E/Z/C).
+        if (_player.Character.Ability == Ability.DiagonalMove)
+        {
+            if (keyboard.IsKeyPressed(Keys.Q)) { dx = -1; dy = -1; }
+            else if (keyboard.IsKeyPressed(Keys.E)) { dx = 1; dy = -1; }
+            else if (keyboard.IsKeyPressed(Keys.Z)) { dx = -1; dy = 1; }
+            else if (keyboard.IsKeyPressed(Keys.C)) { dx = 1; dy = 1; }
+        }
 
         if (dx == 0 && dy == 0) return false;
 
@@ -49,7 +67,6 @@ internal class RootScreen : ScreenSurface
         int ny = _player.Y + dy;
         var room = _dungeon.CurrentRoom;
 
-        // Går vi mot en dør? Start en fade i stedet for å bytte rom med en gang.
         var door = room.GetDoorAt(nx, ny);
         if (door.HasValue)
         {
@@ -59,7 +76,6 @@ internal class RootScreen : ScreenSurface
             return true;
         }
 
-        // Ellers: vanlig bevegelse hvis ruta er gangbar.
         if (room.IsWalkable(nx, ny))
         {
             _player.X = nx;
@@ -70,11 +86,27 @@ internal class RootScreen : ScreenSurface
         return true;
     }
 
-    // Kalles automatisk på hver frame. Her driver vi fade-animasjonen frem.
+    // Teleporter til en tilfeldig ledig rute i rommet.
+    private void Blink()
+    {
+        var room = _dungeon.CurrentRoom;
+        for (int i = 0; i < 100; i++)
+        {
+            int x = _rng.Next(1, room.Width - 1);
+            int y = _rng.Next(1, room.Height - 1);
+            if (room.IsWalkable(x, y))
+            {
+                _player.X = x;
+                _player.Y = y;
+                break;
+            }
+        }
+        Render();
+    }
+
     public override void Update(TimeSpan delta)
     {
         base.Update(delta);
-
         if (_fade == FadeState.None) return;
 
         _fadeTimer += delta.TotalSeconds;
@@ -82,31 +114,25 @@ internal class RootScreen : ScreenSurface
 
         if (_fade == FadeState.Out)
         {
-            // 0 -> 255: skjermen blir gradvis svart.
             Tint = new Color(0, 0, 0, (int)(t * 255));
             IsDirty = true;
-
             if (t >= 1)
             {
-                // Nå er alt svart - bytt rom uten at spilleren ser det.
                 var newPos = _dungeon.TransitionTo(_pendingDoor);
                 _player.X = newPos.X;
                 _player.Y = newPos.Y;
                 Render();
-
                 _fade = FadeState.In;
                 _fadeTimer = 0;
             }
         }
-        else // FadeState.In
+        else
         {
-            // 255 -> 0: det nye rommet avsløres.
             Tint = new Color(0, 0, 0, (int)((1 - t) * 255));
             IsDirty = true;
-
             if (t >= 1)
             {
-                Tint = Color.Transparent; // helt klart igjen
+                Tint = Color.Transparent;
                 _fade = FadeState.None;
             }
         }
@@ -116,5 +142,30 @@ internal class RootScreen : ScreenSurface
     {
         _dungeon.CurrentRoom.Render(Surface);
         Surface.SetGlyph(_player.X, _player.Y, _player.Glyph, _player.Color);
+        DrawStatus();
+    }
+
+    // Statuslinje nederst: navn, HP og hvilke kontroller helten har.
+    private void DrawStatus()
+    {
+        int row = Height - 1;
+        Surface.Clear(0, row, Width);
+
+        var c = _player.Character;
+        int x = 1;
+
+        Surface.Print(x, row, c.Name, c.Color);
+        x += c.Name.Length + 2;
+
+        Surface.Print(x, row, $"HP {_player.Hp}/{c.MaxHp}", new Color(210, 120, 120));
+        x += 10;
+
+        string controls = c.Ability switch
+        {
+            Ability.DiagonalMove => "QEZC: diagonal   M: map",
+            Ability.Blink => "Space: teleport   M: map",
+            _ => "Arrows: move   M: map"
+        };
+        Surface.Print(x, row, controls, new Color(120, 120, 120));
     }
 }

@@ -45,9 +45,9 @@ internal class MapScreen : ScreenSurface
         Surface.Clear();
 
         // Tittel øverst og hint nederst
-        const string title = "KART";
+        const string title = "MAP";
         Surface.Print((Width - title.Length) / 2, 1, title, Color.White);
-        const string hint = "M eller Esc for å lukke";
+        const string hint = "M or Esc to close";
         Surface.Print((Width - hint.Length) / 2, Height - 2, hint, new Color(120, 120, 120));
 
         // Tegn hvert rom som en 3x3-celle.
