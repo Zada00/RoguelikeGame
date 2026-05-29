@@ -7,6 +7,11 @@ namespace RoguelikeGame;
 
 internal class RootScreen : ScreenSurface
 {
+    private const int MapWidth = 40;
+    private const int MapHeight = 24;
+    private static readonly Color FloorBackground = new(40, 40, 48);
+
+    private readonly ScreenSurface _status;
     private readonly Dungeon _dungeon;
     private readonly Player _player;
     private readonly Random _rng = new();
@@ -17,13 +22,22 @@ internal class RootScreen : ScreenSurface
     private Direction _pendingDoor;
     private const double FadeDuration = 0.2;
 
-    // Konstruktøren tar nå imot den valgte helten.
-    public RootScreen(Character character) : base(80, 25)
+    public RootScreen(Character character) : base(MapWidth, MapHeight)
     {
-        // Rommet er 24 høyt, så nederste rad (24) er ledig til statuslinja.
-        _dungeon = new Dungeon(gridWidth: 5, gridHeight: 5, roomWidth: 80, roomHeight: 24);
-        _player = new Player(character, 40, 12);
+        // Bytt DENNE flatens font til tileset-et (16x16 grafiske fliser).
+        Font = GameFonts.Tiles;
+        FontSize = GameFonts.Tiles.GetFontSize(IFont.Sizes.One);
+
+        // Statuslinje som eget barn, med standard tekst-font, plassert nederst.
+        _status = new ScreenSurface(80, 1) { UsePixelPositioning = true };
+        _status.Position = new Point(0, MapHeight * 16);
+        Children.Add(_status);
+
+        _dungeon = new Dungeon(gridWidth: 5, gridHeight: 5, roomWidth: MapWidth, roomHeight: MapHeight);
+        _player = new Player(character, MapWidth / 2, MapHeight / 2);
+
         Render();
+        DrawStatus();
     }
 
     public override bool ProcessKeyboard(Keyboard keyboard)
@@ -38,7 +52,6 @@ internal class RootScreen : ScreenSurface
             return true;
         }
 
-        // Magikerens teleport.
         if (_player.Character.Ability == Ability.Blink && keyboard.IsKeyPressed(Keys.Space))
         {
             Blink();
@@ -46,13 +59,11 @@ internal class RootScreen : ScreenSurface
         }
 
         int dx = 0, dy = 0;
-
         if (keyboard.IsKeyPressed(Keys.Up)) dy = -1;
         else if (keyboard.IsKeyPressed(Keys.Down)) dy = 1;
         else if (keyboard.IsKeyPressed(Keys.Left)) dx = -1;
         else if (keyboard.IsKeyPressed(Keys.Right)) dx = 1;
 
-        // Tyvens diagonale bevegelse (Q/E/Z/C).
         if (_player.Character.Ability == Ability.DiagonalMove)
         {
             if (keyboard.IsKeyPressed(Keys.Q)) { dx = -1; dy = -1; }
@@ -82,11 +93,9 @@ internal class RootScreen : ScreenSurface
             _player.Y = ny;
             Render();
         }
-
         return true;
     }
 
-    // Teleporter til en tilfeldig ledig rute i rommet.
     private void Blink()
     {
         var room = _dungeon.CurrentRoom;
@@ -115,7 +124,6 @@ internal class RootScreen : ScreenSurface
         if (_fade == FadeState.Out)
         {
             Tint = new Color(0, 0, 0, (int)(t * 255));
-            IsDirty = true;
             if (t >= 1)
             {
                 var newPos = _dungeon.TransitionTo(_pendingDoor);
@@ -129,7 +137,6 @@ internal class RootScreen : ScreenSurface
         else
         {
             Tint = new Color(0, 0, 0, (int)((1 - t) * 255));
-            IsDirty = true;
             if (t >= 1)
             {
                 Tint = Color.Transparent;
@@ -141,24 +148,22 @@ internal class RootScreen : ScreenSurface
     private void Render()
     {
         _dungeon.CurrentRoom.Render(Surface);
-        Surface.SetGlyph(_player.X, _player.Y, _player.Glyph, _player.Color);
-        DrawStatus();
+        // Spilleren tegnes med hvit forgrunn (egne farger) og gulv-farget bakgrunn.
+        Surface.SetGlyph(_player.X, _player.Y, _player.TileIndex, Color.White, FloorBackground);
+        Surface.IsDirty = true;
     }
 
-    // Statuslinje nederst: navn, HP og hvilke kontroller helten har.
     private void DrawStatus()
     {
-        int row = Height - 1;
-        Surface.Clear(0, row, Width);
-
+        var s = _status.Surface;
+        s.Clear();
         var c = _player.Character;
+
         int x = 1;
-
-        Surface.Print(x, row, c.Name, c.Color);
+        s.Print(x, 0, c.Name, c.Color);
         x += c.Name.Length + 2;
-
-        Surface.Print(x, row, $"HP {_player.Hp}/{c.MaxHp}", new Color(210, 120, 120));
-        x += 10;
+        s.Print(x, 0, $"HP {_player.Hp}/{c.MaxHp}", new Color(210, 120, 120));
+        x += 12;
 
         string controls = c.Ability switch
         {
@@ -166,6 +171,7 @@ internal class RootScreen : ScreenSurface
             Ability.Blink => "Space: teleport   M: map",
             _ => "Arrows: move   M: map"
         };
-        Surface.Print(x, row, controls, new Color(120, 120, 120));
+        s.Print(x, 0, controls, new Color(120, 120, 120));
+        s.IsDirty = true;
     }
 }

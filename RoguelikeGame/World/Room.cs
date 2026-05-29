@@ -3,33 +3,19 @@ using SadRogue.Primitives;
 
 namespace RoguelikeGame;
 
-internal enum Direction
-{
-    North,
-    South,
-    East,
-    West
-}
+internal enum Direction { North, South, East, West }
 
 internal class Room
 {
     public int Width { get; }
     public int Height { get; }
-
     private readonly Tile[,] _tiles;
 
-    // Hvilke vegger har dører. Settes av Dungeon når labyrinten genereres.
     public bool HasDoorNorth { get; set; }
     public bool HasDoorSouth { get; set; }
     public bool HasDoorEast { get; set; }
     public bool HasDoorWest { get; set; }
-
-    // Brukes senere til kartoversikt med fog of war.
     public bool IsVisited { get; set; }
-
-    private static readonly Color FloorColor = new(70, 70, 70);
-    private static readonly Color WallColor = new(150, 120, 90);
-    private static readonly Color DoorColor = new(220, 170, 70);
 
     public Room(int width, int height)
     {
@@ -37,7 +23,6 @@ internal class Room
         Height = height;
         _tiles = new Tile[width, height];
 
-        // Et enkelt rektangulært rom: vegger rundt kanten, gulv inni.
         for (int x = 0; x < Width; x++)
             for (int y = 0; y < Height; y++)
             {
@@ -46,17 +31,15 @@ internal class Room
             }
     }
 
-    // Hvor ligger døra på en gitt vegg? Midt på vegen.
     public Point GetDoorPosition(Direction dir) => dir switch
     {
         Direction.North => new Point(Width / 2, 0),
         Direction.South => new Point(Width / 2, Height - 1),
         Direction.West => new Point(0, Height / 2),
         Direction.East => new Point(Width - 1, Height / 2),
-        _ => throw new ArgumentException("Ukjent retning")
+        _ => throw new ArgumentException("Unknown direction")
     };
 
-    // Returnerer hvilken dør som er på en gitt rute - eller null hvis ingen.
     public Direction? GetDoorAt(int x, int y)
     {
         if (HasDoorNorth && x == Width / 2 && y == 0) return Direction.North;
@@ -82,7 +65,6 @@ internal class Room
                 surface.SetGlyph(x, y, t.Glyph, t.Foreground, t.Background);
             }
 
-        // Tegn dørene oppå veggene.
         DrawDoorIfPresent(surface, Direction.North);
         DrawDoorIfPresent(surface, Direction.South);
         DrawDoorIfPresent(surface, Direction.East);
@@ -102,22 +84,13 @@ internal class Room
         if (!hasDoor) return;
 
         var pos = GetDoorPosition(dir);
-        surface.SetGlyph(pos.X, pos.Y, '+', DoorColor, Color.Black);
+        surface.SetGlyph(pos.X, pos.Y, Glyph.Door, Color.White, Color.Black);
     }
 
+    // Hvit forgrunn = vis flisens egne farger uendret.
     private static Tile Floor() => new()
-    {
-        Glyph = '.',
-        Foreground = FloorColor,
-        Background = Color.Black,
-        IsWalkable = true
-    };
+    { Glyph = Glyph.Floor, Foreground = Color.White, Background = Color.Black, IsWalkable = true };
 
     private static Tile Wall() => new()
-    {
-        Glyph = '#',
-        Foreground = WallColor,
-        Background = Color.Black,
-        IsWalkable = false
-    };
+    { Glyph = Glyph.Wall, Foreground = Color.White, Background = Color.Black, IsWalkable = false };
 }

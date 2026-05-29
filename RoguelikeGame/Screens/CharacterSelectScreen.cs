@@ -32,7 +32,7 @@ internal class CharacterSelectScreen : ScreenSurface
             bool isSelected = i == _selected;
 
             Surface.Print(4, y, isSelected ? ">" : " ", Color.Yellow);
-            Surface.SetGlyph(6, y, c.Glyph, c.Color);
+            Surface.Print(6, y, c.Name[..1], c.Color);
             Surface.Print(8, y, c.Name, isSelected ? Color.White : new Color(120, 120, 120));
             Surface.Print(24, y, $"HP {c.MaxHp}", isSelected ? new Color(210, 120, 120) : new Color(90, 90, 90));
 
