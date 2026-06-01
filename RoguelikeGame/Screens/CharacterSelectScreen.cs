@@ -50,21 +50,27 @@ internal class CharacterSelectScreen : ScreenSurface
         foreach (var line in Wrap(c.Description, 36))
             Surface.Print(PanelX, y++, line, dim);
 
-        // stats i to rader
         Surface.Print(PanelX, 12, $"ATK {c.Attack,-3} DEF {c.Defense,-3} HP {c.MaxHp}", Color.White);
         Surface.Print(PanelX, 13, $"VIS {c.Vision,-3} SPD {c.Speed,-3} MANA {c.Mana}", Color.White);
 
-        Surface.Print(PanelX, 15, "Ability: " + AbilityText(c.Ability), label);
+        Surface.Print(PanelX, 15, "Attacks: " + AbilityText(c), label);
     }
 
-    private static string AbilityText(Ability a) => a switch
+    private static string AbilityText(Character c)
     {
-        Ability.DiagonalMove => "Moves diagonally",
-        Ability.Blink => "Teleports (Space)",
-        Ability.RevealNeighbors => "Reveals nearby rooms",
-        Ability.RevealAll => "Reveals whole map",
-        _ => "(combat role)"
-    };
+        string basic = c.Ranged ? "ranged shot" : "melee strike";
+        string special = c.Special switch
+        {
+            Special.Blink => "Teleport",
+            Special.Whirlwind => "Whirlwind",
+            Special.Bash => "Shield bash",
+            Special.Volley => "Arrow volley",
+            Special.Nova => "Death nova",
+            Special.HolyLight => "Holy light",
+            _ => "none",
+        };
+        return $"{basic}, special: {special}";
+    }
 
     // Enkel ordbryting så beskrivelsen ikke renner ut av panelet.
     private static IEnumerable<string> Wrap(string text, int width)

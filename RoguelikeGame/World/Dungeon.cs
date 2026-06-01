@@ -115,6 +115,29 @@ internal class Dungeon
         };
     }
 
+    // Marker rommene rett ved siden av et gitt rom som "sett". Brukes av Scout.
+    public void RevealNeighbors(int gx, int gy)
+    {
+        MarkSeen(gx - 1, gy);
+        MarkSeen(gx + 1, gy);
+        MarkSeen(gx, gy - 1);
+        MarkSeen(gx, gy + 1);
+    }
+
+    private void MarkSeen(int gx, int gy)
+    {
+        var room = GetRoom(gx, gy);
+        if (room != null) room.IsVisited = true;
+    }
+
+    // Marker ALLE rom som sett. Brukes av Necromancer.
+    public void RevealAll()
+    {
+        for (int gx = 0; gx < GridWidth; gx++)
+            for (int gy = 0; gy < GridHeight; gy++)
+                _rooms[gx, gy].IsVisited = true;
+    }
+
     public Room? GetRoom(int gridX, int gridY)
     {
         if (gridX < 0 || gridY < 0 || gridX >= GridWidth || gridY >= GridHeight)

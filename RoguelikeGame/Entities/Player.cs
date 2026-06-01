@@ -6,6 +6,7 @@ internal class Player
     public int Y { get; set; }
     public Character Character { get; }
     public int Hp { get; set; }
+    public Direction Facing { get; set; } = Direction.South;
 
     public int TileIndex => Character.TileIndex;
 
