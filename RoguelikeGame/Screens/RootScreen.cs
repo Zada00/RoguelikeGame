@@ -96,6 +96,11 @@ internal class RootScreen : ScreenSurface
             return true;
         }
 
+        if (room.MonsterAt(nx, ny) != null)
+        {
+            return true;
+        }
+
         if (room.IsWalkable(nx, ny))
         {
             _player.X = nx;
@@ -324,6 +329,9 @@ internal class RootScreen : ScreenSurface
     private void Render()
     {
         _dungeon.CurrentRoom.Render(Surface);
+
+        foreach (var m in _dungeon.CurrentRoom.Monsters)
+            Surface.SetGlyph(m.X, m.Y, m.TileIndex, Color.White, _dungeon.CurrentRoom.FloorBackground);
 
         foreach (var p in _effectTiles)
             if (p.X >= 0 && p.Y >= 0 && p.X < MapWidth && p.Y < MapHeight)

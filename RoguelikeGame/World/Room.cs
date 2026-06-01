@@ -13,6 +13,7 @@ internal class Room
     public int Height { get; }
     public RoomTheme Theme { get; }
     public Color FloorBackground { get; }
+    public List<Monster> Monsters { get; } = new();
 
     private readonly Tile[,] _tiles;
     private readonly int _floorGlyph;
@@ -95,6 +96,33 @@ internal class Room
 
         _tiles[Width / 2, Height / 2] = Floor();
     }
+
+    // Plasser 0-3 tilfeldige monstre på ledige gulvruter. Ikke i startrommet.
+    public void SpawnMonsters(Random rng, bool isStart)
+    {
+        if (isStart) return;
+
+        var makers = new Func<int, int, Monster>[]
+        { Monster.Rat, Monster.Goblin, Monster.Skeleton, Monster.Slime };
+
+        int count = rng.Next(0, 4);
+        for (int n = 0; n < count; n++)
+        {
+            for (int attempt = 0; attempt < 20; attempt++)
+            {
+                int x = rng.Next(1, Width - 1);
+                int y = rng.Next(1, Height - 1);
+                bool center = x == Width / 2 && y == Height / 2;
+                if (IsWalkable(x, y) && !center && MonsterAt(x, y) == null)
+                {
+                    Monsters.Add(makers[rng.Next(makers.Length)](x, y));
+                    break;
+                }
+            }
+        }
+    }
+
+    public Monster? MonsterAt(int x, int y) => Monsters.FirstOrDefault(m => m.X == x && m.Y == y);
 
     public Point GetDoorPosition(Direction dir) => dir switch
     {

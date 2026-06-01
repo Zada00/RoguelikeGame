@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 
 TILE = 32
 COLS = 8
-ROWS = 3
+ROWS = 4
 OUTLINE = (22, 18, 30, 255)
 
 sheet = Image.new("RGBA", (COLS * TILE, ROWS * TILE), (0, 0, 0, 0))
@@ -322,6 +322,72 @@ hero(13, dict(tunic=(70, 42, 92, 255), boots=(40, 26, 52, 255), skin=SKIN_PALE,
 hero(14, dict(tunic=(226, 216, 168, 255), boots=(150, 130, 90, 255), belt=(210, 180, 90, 255),
               head="halo", hoodc=(214, 200, 156, 255), weapon="holystaff"))
 
+# ================================================================= monsters
+# 24 Rat - liten, lav, hale
+def rat(i):
+    body = (120, 110, 104, 255)
+    ellipse(i, 8, 16, 24, 27, body)              # kropp
+    ellipse(i, 18, 12, 28, 22, body)             # hode
+    rect(i, 18, 10, 20, 13, darken(body, 10))    # ører
+    rect(i, 24, 10, 26, 13, darken(body, 10))
+    put(i, 26, 16, (30, 26, 30, 255))            # øye
+    put(i, 28, 18, (220, 150, 160, 255))         # snute
+    # hale
+    ox, oy = org(i)
+    d.line([ox + 8, oy + 22, ox + 2, oy + 26], fill=(180, 140, 140, 255), width=2)
+    outline_tile(i)
+
+
+# 25 Goblin - liten grønn humanoid
+def goblin(i):
+    skin = (96, 150, 78, 255)
+    ellipse(i, 5, 28, 26, 31, (0, 0, 0, 70))     # skygge
+    rect(i, 11, 24, 14, 29, darken(skin, 24))    # bein
+    rect(i, 17, 24, 20, 29, darken(skin, 24))
+    shaded(i, 9, 15, 22, 25, (120, 90, 60, 255), 12, 18)  # tunika
+    shaded(i, 9, 6, 22, 16, skin, 12, 18)        # hode
+    rect(i, 5, 8, 9, 12, skin); rect(i, 22, 8, 26, 12, skin)  # store ører
+    rect(i, 12, 10, 13, 12, (210, 40, 40, 255))  # røde øyne
+    rect(i, 18, 10, 19, 12, (210, 40, 40, 255))
+    rect(i, 13, 14, 18, 14, (40, 30, 30, 255))   # munn
+    rect(i, 24, 14, 26, 22, (150, 150, 158, 255))  # liten klubbe/dolk
+    outline_tile(i)
+
+
+# 26 Skeleton - hvite bein, skalle
+def skeleton(i):
+    bone = (224, 222, 210, 255)
+    ellipse(i, 5, 28, 26, 31, (0, 0, 0, 70))
+    rect(i, 12, 24, 14, 30, bone); rect(i, 17, 24, 19, 30, bone)  # bein
+    rect(i, 10, 16, 21, 24, bone)                # ribbein-blokk
+    rect(i, 12, 18, 19, 18, darken(bone, 30))
+    rect(i, 12, 21, 19, 21, darken(bone, 30))
+    rect(i, 5, 17, 8, 23, bone); rect(i, 23, 17, 26, 23, bone)    # armer
+    ellipse(i, 9, 4, 22, 16, bone)               # skalle
+    rect(i, 12, 9, 14, 12, (20, 20, 26, 255))    # øyehuler
+    rect(i, 17, 9, 19, 12, (20, 20, 26, 255))
+    rect(i, 13, 13, 18, 14, (60, 60, 66, 255))   # tenner
+    outline_tile(i)
+
+
+# 27 Slime - grønn klatt
+def slime(i):
+    body = (90, 200, 120, 255)
+    ellipse(i, 5, 28, 26, 31, (0, 0, 0, 70))
+    ellipse(i, 6, 12, 26, 30, body)
+    ellipse(i, 6, 8, 26, 26, body)               # toppen buler opp
+    ellipse(i, 9, 12, 15, 18, lighten(body, 40)) # høylys
+    rect(i, 12, 18, 14, 21, (30, 60, 40, 255))   # øyne
+    rect(i, 18, 18, 20, 21, (30, 60, 40, 255))
+    rect(i, 14, 24, 18, 25, (40, 80, 55, 255))   # munn
+    outline_tile(i)
+
+
+rat(24)
+goblin(25)
+skeleton(26)
+slime(27)
+
 sheet.save("/home/claude/tiles.png")
 print("tiles.png:", sheet.size)
 
@@ -332,6 +398,12 @@ for n, hi in enumerate(range(8, 15)):
     ox, oy = org(hi)
     strip.alpha_composite(sheet.crop((ox, oy, ox + TILE, oy + TILE)), (n * TILE, 0))
 strip.resize((strip.width * 6, strip.height * 6), Image.NEAREST).save("/home/claude/heroes_preview.png")
+
+mstrip = Image.new("RGBA", (4 * TILE, TILE), (28, 28, 36, 255))
+for n, mi in enumerate(range(24, 28)):
+    ox, oy = org(mi)
+    mstrip.alpha_composite(sheet.crop((ox, oy, ox + TILE, oy + TILE)), (n * TILE, 0))
+mstrip.resize((mstrip.width * 6, mstrip.height * 6), Image.NEAREST).save("/home/claude/monsters_preview.png")
 
 sw, sh = 14, 9
 scene = Image.new("RGBA", (sw * TILE, sh * TILE), (12, 12, 18, 255))

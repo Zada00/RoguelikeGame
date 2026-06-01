@@ -13,4 +13,6 @@ internal static class Glyph
 
     public const int Warrior = 8, Guardian = 9, Rogue = 10, Mage = 11,
                      Scout = 12, Necromancer = 13, Priest = 14;
+
+    public const int Rat = 24, Goblin = 25, Skeleton = 26, Slime = 27;
 }

@@ -30,6 +30,7 @@ internal class Dungeon
                 var theme = (RoomTheme)_rng.Next(4);
                 var room = new Room(RoomWidth, RoomHeight, theme);
                 room.Decorate(_rng, isStart: gx == 0 && gy == 0);
+                room.SpawnMonsters(_rng, isStart: gx == 0 && gy == 0);
                 _rooms[gx, gy] = room;
             }
 
