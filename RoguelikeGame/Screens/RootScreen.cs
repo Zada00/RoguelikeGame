@@ -110,8 +110,7 @@ internal class RootScreen : ScreenSurface
     private void BasicAttack()
     {
         var c = _player.Character;
-        List<Point> tiles = c.Ranged ? LineInFront(5) : new() { Front() };
-        ShowEffect(tiles, Brighten(c.Color));
+        ShowEffect(Resolve(c.BasicShape), Glow(c.Color, 45));
         _lastAction = c.Ranged ? "Shot!" : "Strike!";
         Render();
         DrawStatus();
@@ -119,8 +118,9 @@ internal class RootScreen : ScreenSurface
 
     private void HeavyAttack()
     {
-        ShowEffect(ArcInFront(), new Color(235, 140, 70));
-        _lastAction = "Heavy swing!";
+        var c = _player.Character;
+        ShowEffect(Resolve(c.HeavyShape), Glow(c.Color, 90));
+        _lastAction = "Heavy: " + HeavyName(c.HeavyShape);
         Render();
         DrawStatus();
     }
@@ -129,66 +129,127 @@ internal class RootScreen : ScreenSurface
     {
         switch (_player.Character.Special)
         {
-            case Special.Blink: Blink(); _lastAction = "Teleport!"; break;
-            case Special.Whirlwind: ShowEffect(Around(1), new Color(245, 150, 70)); _lastAction = "Whirlwind!"; break;
-            case Special.Bash: ShowEffect(ArcInFront(), new Color(150, 190, 235)); _lastAction = "Shield bash!"; break;
-            case Special.Volley: ShowEffect(LineInFront(9), new Color(150, 220, 90)); _lastAction = "Volley!"; break;
-            case Special.Nova: ShowEffect(Around(2), new Color(130, 235, 140)); _lastAction = "Death nova!"; break;
-            case Special.HolyLight: ShowEffect(Around(2), new Color(245, 225, 140)); _lastAction = "Holy light!"; break;
-            default: _lastAction = "No special"; break;
+            case Special.Blink:
+                Blink(); _lastAction = "Teleport!"; break;
+            case Special.Whirlwind:
+                ShowEffect(Around(1), new Color(245, 150, 70)); _lastAction = "Whirlwind!"; break;
+            case Special.Bash:
+                ShowEffect(Resolve(AttackShape.Sweep), new Color(150, 190, 235)); _lastAction = "Shield bash!"; break;
+            case Special.Volley:
+                {
+                    var (dx, dy) = Offset(_player.Facing);
+                    ShowEffect(Ray(_player.X, _player.Y, dx, dy, 9), new Color(150, 220, 90));
+                    _lastAction = "Volley!"; break;
+                }
+            case Special.Nova:
+                ShowEffect(Around(2), new Color(130, 235, 140)); _lastAction = "Death nova!"; break;
+            case Special.HolyLight:
+                ShowEffect(Around(2), new Color(245, 225, 140)); _lastAction = "Holy light!"; break;
+            default:
+                _lastAction = "No special"; break;
         }
         Render();
         DrawStatus();
     }
 
-    // ruta rett foran spilleren
-    private Point Front()
+    // -------------------------------------------------------- attack shapes
+    private List<Point> Resolve(AttackShape shape)
     {
         var (dx, dy) = Offset(_player.Facing);
-        return new Point(_player.X + dx, _player.Y + dy);
+        int px = _player.X, py = _player.Y;
+        int perpX = dy, perpY = dx;     // perpendicular to facing
+        var t = new List<Point>();
+
+        switch (shape)
+        {
+            case AttackShape.Jab:
+                t.Add(new Point(px + dx, py + dy));
+                break;
+            case AttackShape.Thrust:
+                t.AddRange(Ray(px, py, dx, dy, 2));
+                break;
+            case AttackShape.Bolt:
+                t.AddRange(Ray(px, py, dx, dy, 5));
+                break;
+            case AttackShape.Arrow:
+                t.AddRange(Ray(px, py, dx, dy, 6));
+                break;
+            case AttackShape.Sweep:
+                {
+                    var c = new Point(px + dx, py + dy);
+                    t.Add(c);
+                    t.Add(new Point(c.X + perpX, c.Y + perpY));
+                    t.Add(new Point(c.X - perpX, c.Y - perpY));
+                    break;
+                }
+            case AttackShape.WideSweep:
+                {
+                    var c = new Point(px + dx, py + dy);
+                    for (int k = -2; k <= 2; k++)
+                        t.Add(new Point(c.X + perpX * k, c.Y + perpY * k));
+                    break;
+                }
+            case AttackShape.Cone:
+                {
+                    t.Add(new Point(px + dx, py + dy));
+                    var c2 = new Point(px + dx * 2, py + dy * 2);
+                    t.Add(c2);
+                    t.Add(new Point(c2.X + perpX, c2.Y + perpY));
+                    t.Add(new Point(c2.X - perpX, c2.Y - perpY));
+                    break;
+                }
+            case AttackShape.Blast:
+                {
+                    int cx = px + dx * 2, cy = py + dy * 2;
+                    for (int ax = -1; ax <= 1; ax++)
+                        for (int ay = -1; ay <= 1; ay++)
+                            t.Add(new Point(cx + ax, cy + ay));
+                    break;
+                }
+            case AttackShape.TripleLine:
+                t.AddRange(Ray(px, py, dx, dy, 6));
+                t.AddRange(Ray(px + perpX, py + perpY, dx, dy, 6));
+                t.AddRange(Ray(px - perpX, py - perpY, dx, dy, 6));
+                break;
+            case AttackShape.Cross:
+                t.AddRange(Ray(px, py, 0, -1, 2));
+                t.AddRange(Ray(px, py, 0, 1, 2));
+                t.AddRange(Ray(px, py, -1, 0, 2));
+                t.AddRange(Ray(px, py, 1, 0, 2));
+                break;
+            case AttackShape.Slam:
+                t.AddRange(Around(1));
+                break;
+        }
+        return t;
     }
 
-    // en linje fremover som stopper i vegg/kant
-    private List<Point> LineInFront(int maxLen)
+    // En stråle fra (sx,sy) i retning (dx,dy), stopper i vegg/kant.
+    private List<Point> Ray(int sx, int sy, int dx, int dy, int len)
     {
-        var tiles = new List<Point>();
-        var (dx, dy) = Offset(_player.Facing);
         var room = _dungeon.CurrentRoom;
-        int x = _player.X, y = _player.Y;
-        for (int i = 0; i < maxLen; i++)
+        var list = new List<Point>();
+        int x = sx, y = sy;
+        for (int i = 0; i < len; i++)
         {
             x += dx; y += dy;
             if (x < 0 || y < 0 || x >= MapWidth || y >= MapHeight) break;
             if (!room.IsWalkable(x, y)) break;
-            tiles.Add(new Point(x, y));
+            list.Add(new Point(x, y));
         }
-        return tiles;
+        return list;
     }
 
-    // tre ruter i en bue foran
-    private List<Point> ArcInFront()
-    {
-        var (dx, dy) = Offset(_player.Facing);
-        var c = new Point(_player.X + dx, _player.Y + dy);
-        return new List<Point>
-        {
-            c,
-            new Point(c.X + dy, c.Y + dx),
-            new Point(c.X - dy, c.Y - dx),
-        };
-    }
-
-    // alle ruter innenfor en radius rundt spilleren
     private List<Point> Around(int radius)
     {
-        var tiles = new List<Point>();
+        var t = new List<Point>();
         for (int ax = -radius; ax <= radius; ax++)
             for (int ay = -radius; ay <= radius; ay++)
             {
                 if (ax == 0 && ay == 0) continue;
-                tiles.Add(new Point(_player.X + ax, _player.Y + ay));
+                t.Add(new Point(_player.X + ax, _player.Y + ay));
             }
-        return tiles;
+        return t;
     }
 
     private void ShowEffect(IEnumerable<Point> tiles, Color color)
@@ -199,8 +260,19 @@ internal class RootScreen : ScreenSurface
         _effectTimer = 0.14;
     }
 
-    private static Color Brighten(Color c) =>
-        new(Math.Min(255, c.R + 45), Math.Min(255, c.G + 45), Math.Min(255, c.B + 45));
+    private static Color Glow(Color c, int amt) =>
+        new(Math.Min(255, c.R + amt), Math.Min(255, c.G + amt), Math.Min(255, c.B + amt));
+
+    private static string HeavyName(AttackShape s) => s switch
+    {
+        AttackShape.WideSweep => "wide sweep",
+        AttackShape.Slam => "ground slam",
+        AttackShape.Cone => "flurry",
+        AttackShape.Blast => "blast",
+        AttackShape.TripleLine => "volley spread",
+        AttackShape.Cross => "death cross",
+        _ => "swing",
+    };
 
     private void Blink()
     {
