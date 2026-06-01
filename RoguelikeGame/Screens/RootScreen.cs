@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using SadConsole;
 using SadConsole.Input;
 using SadRogue.Primitives;
@@ -9,15 +10,18 @@ internal class RootScreen : ScreenSurface
 {
     private const int MapWidth = 20;
     private const int MapHeight = 12;
-    private const double MoveSpeed = 6.0;   // ruter per sekund
+    private const double MoveSpeed = 6.0;
 
     private readonly ScreenSurface _status;
     private readonly ScreenSurface _playerSurface;
+    private readonly List<ScreenSurface> _monsterViews = new();
     private Dungeon _dungeon;
     private readonly Player _player;
 
-    private double _px, _py;   // spillerens flyt-posisjon (i ruter, med desimaler)
+    private double _px, _py;
     private int _depth = 1;
+    private bool _dead;
+    private double _hurtTimer;
 
     private enum FadeState { None, Out, In }
     private FadeState _fade = FadeState.None;
@@ -37,10 +41,8 @@ internal class RootScreen : ScreenSurface
 
         _dungeon = new Dungeon(5, 5, MapWidth, MapHeight, _depth);
         _player = new Player(character, MapWidth / 2, MapHeight / 2);
-        _px = _player.X;
-        _py = _player.Y;
+        _px = _player.X; _py = _player.Y;
 
-        // Spilleren som egen pikselplassert flate -> kan gli jevnt mellom ruter.
         _playerSurface = new ScreenSurface(1, 1) { UsePixelPositioning = true };
         _playerSurface.Font = GameFonts.Tiles;
         _playerSurface.FontSize = GameFonts.Tiles.GetFontSize(IFont.Sizes.One);
@@ -50,6 +52,7 @@ internal class RootScreen : ScreenSurface
 
         ApplyExploreAbility();
         RenderMap();
+        RebuildMonsterViews();
         UpdatePlayerSurface();
     }
 
@@ -64,9 +67,9 @@ internal class RootScreen : ScreenSurface
         }
     }
 
-    // Bare M håndteres her nå; bevegelse skjer i Update (sanntid).
     public override bool ProcessKeyboard(Keyboard keyboard)
     {
+        if (_dead) return true;
         if (keyboard.IsKeyPressed(Keys.M))
         {
             var mapScreen = new MapScreen(_dungeon);
@@ -82,12 +85,13 @@ internal class RootScreen : ScreenSurface
         base.Update(delta);
         double dt = delta.TotalSeconds;
 
+        if (_dead) return;
         if (_doorCooldown > 0) _doorCooldown -= dt;
 
         if (_fade != FadeState.None) { UpdateFade(dt); return; }
-        if (!IsFocused) return;   // f.eks. når kartet er åpent
+        if (!IsFocused) return;
 
-        // Hold-taster leses hver frame.
+        // ---- spillerbevegelse ----
         var kb = Game.Instance.Keyboard;
         double vx = 0, vy = 0;
         if (kb.IsKeyDown(Keys.Up) || kb.IsKeyDown(Keys.W)) vy -= 1;
@@ -97,9 +101,45 @@ internal class RootScreen : ScreenSurface
 
         if (vx != 0 || vy != 0)
         {
-            if (vx != 0 && vy != 0) { vx *= 0.70710678; vy *= 0.70710678; }  // diagonal-normalisering
+            if (vx != 0 && vy != 0) { vx *= 0.70710678; vy *= 0.70710678; }
             MovePlayer(vx * MoveSpeed * dt, vy * MoveSpeed * dt);
             UpdatePlayerSurface();
+        }
+
+        // ---- monstre lever i sanntid ----
+        if (_fade == FadeState.None && !_dead)
+            UpdateMonsters(dt);
+
+        // ---- skade-flash ----
+        if (_hurtTimer > 0)
+        {
+            _hurtTimer -= dt;
+            Tint = new Color(180, 0, 0, 50);
+        }
+        else Tint = Color.Transparent;
+    }
+
+    private void UpdateMonsters(double dt)
+    {
+        var room = _dungeon.CurrentRoom;
+        int tile = GameFonts.Tiles.GlyphWidth;
+        var monsters = room.Monsters;
+        int dmg = 0;
+
+        for (int i = 0; i < monsters.Count && i < _monsterViews.Count; i++)
+        {
+            var m = monsters[i];
+            dmg += m.UpdateRealtime(dt, _px, _py, room);
+            _monsterViews[i].Position = new Point(
+                (int)Math.Round(m.Fx * tile), (int)Math.Round(m.Fy * tile));
+        }
+
+        if (dmg > 0)
+        {
+            _player.Hp -= dmg;
+            _hurtTimer = 0.12;
+            DrawStatus();
+            if (_player.Hp <= 0 && !_dead) Die();
         }
     }
 
@@ -107,7 +147,6 @@ internal class RootScreen : ScreenSurface
     {
         var room = _dungeon.CurrentRoom;
 
-        // Flytt én akse om gangen, så man glir langs vegger.
         double nx = _px + dx;
         if (CellFree(nx, _py, room)) _px = nx;
         double ny = _py + dy;
@@ -115,8 +154,7 @@ internal class RootScreen : ScreenSurface
 
         int cx = (int)Math.Round(_px);
         int cy = (int)Math.Round(_py);
-        _player.X = cx;
-        _player.Y = cy;
+        _player.X = cx; _player.Y = cy;
 
         if (room.IsStairs(cx, cy)) { Descend(); return; }
 
@@ -136,9 +174,7 @@ internal class RootScreen : ScreenSurface
     {
         int cx = (int)Math.Round(fx);
         int cy = (int)Math.Round(fy);
-        if (!room.IsWalkable(cx, cy)) return false;
-        if (room.MonsterAt(cx, cy) != null) return false;
-        return true;
+        return room.IsWalkable(cx, cy);
     }
 
     private void UpdateFade(double dt)
@@ -149,7 +185,6 @@ internal class RootScreen : ScreenSurface
         if (_fade == FadeState.Out)
         {
             Tint = new Color(0, 0, 0, (int)(t * 255));
-            _playerSurface.Tint = Tint;
             if (t >= 1)
             {
                 var pos = _dungeon.TransitionTo(_pendingDoor);
@@ -157,6 +192,7 @@ internal class RootScreen : ScreenSurface
                 _player.X = pos.X; _player.Y = pos.Y;
                 ApplyExploreAbility();
                 RenderMap();
+                RebuildMonsterViews();
                 UpdatePlayerSurface();
                 _fade = FadeState.In;
                 _fadeTimer = 0;
@@ -166,13 +202,7 @@ internal class RootScreen : ScreenSurface
         else
         {
             Tint = new Color(0, 0, 0, (int)((1 - t) * 255));
-            _playerSurface.Tint = Tint;
-            if (t >= 1)
-            {
-                Tint = Color.Transparent;
-                _playerSurface.Tint = Color.Transparent;
-                _fade = FadeState.None;
-            }
+            if (t >= 1) { Tint = Color.Transparent; _fade = FadeState.None; }
         }
     }
 
@@ -185,22 +215,54 @@ internal class RootScreen : ScreenSurface
         _doorCooldown = 0.3;
         ApplyExploreAbility();
         RenderMap();
+        RebuildMonsterViews();
         UpdatePlayerSurface();
+    }
+
+    private void Die()
+    {
+        _dead = true;
+        _player.Hp = 0;
+        var over = new GameOverScreen(_player.Character.Name);
+        Game.Instance.Screen = over;
+        over.IsFocused = true;
+    }
+
+    // Lag én liten pikselplassert flate per monster i rommet.
+    private void RebuildMonsterViews()
+    {
+        foreach (var v in _monsterViews) Children.Remove(v);
+        _monsterViews.Clear();
+
+        int tile = GameFonts.Tiles.GlyphWidth;
+        foreach (var m in _dungeon.CurrentRoom.Monsters)
+        {
+            m.Fx = m.X; m.Fy = m.Y;
+            var v = new ScreenSurface(1, 1) { UsePixelPositioning = true };
+            v.Font = GameFonts.Tiles;
+            v.FontSize = GameFonts.Tiles.GetFontSize(IFont.Sizes.One);
+            v.Surface.DefaultBackground = Color.Transparent;
+            v.Surface.SetGlyph(0, 0, m.TileIndex, Color.White, Color.Transparent);
+            v.Position = new Point(m.X * tile, m.Y * tile);
+            Children.Add(v);
+            _monsterViews.Add(v);
+        }
+
+        // hold spilleren tegnet øverst
+        Children.Remove(_playerSurface);
+        Children.Add(_playerSurface);
     }
 
     private void UpdatePlayerSurface()
     {
         int tile = GameFonts.Tiles.GlyphWidth;
         _playerSurface.Position = new Point(
-            (int)Math.Round(_px * tile),
-            (int)Math.Round(_py * tile));
+            (int)Math.Round(_px * tile), (int)Math.Round(_py * tile));
     }
 
     private void RenderMap()
     {
         _dungeon.CurrentRoom.Render(Surface);
-        foreach (var m in _dungeon.CurrentRoom.Monsters)
-            Surface.SetGlyph(m.X, m.Y, m.TileIndex, Color.White, _dungeon.CurrentRoom.FloorBackground);
         Surface.IsDirty = true;
         DrawStatus();
     }
