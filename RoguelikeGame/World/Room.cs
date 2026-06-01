@@ -5,11 +5,18 @@ namespace RoguelikeGame;
 
 internal enum Direction { North, South, East, West }
 
+internal enum RoomTheme { Stone, Moss, Crypt, Cave }
+
 internal class Room
 {
     public int Width { get; }
     public int Height { get; }
+    public RoomTheme Theme { get; }
+    public Color FloorBackground { get; }
+
     private readonly Tile[,] _tiles;
+    private readonly int _floorGlyph;
+    private readonly int _wallGlyph;
 
     public bool HasDoorNorth { get; set; }
     public bool HasDoorSouth { get; set; }
@@ -17,18 +24,76 @@ internal class Room
     public bool HasDoorWest { get; set; }
     public bool IsVisited { get; set; }
 
-    public Room(int width, int height)
+    public Room(int width, int height, RoomTheme theme)
     {
         Width = width;
         Height = height;
-        _tiles = new Tile[width, height];
+        Theme = theme;
 
+        (_floorGlyph, _wallGlyph, FloorBackground) = theme switch
+        {
+            RoomTheme.Moss => (Glyph.MossFloor, Glyph.MossWall, new Color(46, 50, 50)),
+            RoomTheme.Crypt => (Glyph.CryptFloor, Glyph.CryptWall, new Color(56, 56, 64)),
+            RoomTheme.Cave => (Glyph.CaveFloor, Glyph.CaveWall, new Color(60, 50, 40)),
+            _ => (Glyph.Floor, Glyph.Wall, new Color(44, 44, 54)),
+        };
+
+        _tiles = new Tile[width, height];
         for (int x = 0; x < Width; x++)
             for (int y = 0; y < Height; y++)
             {
                 bool isEdge = x == 0 || y == 0 || x == Width - 1 || y == Height - 1;
                 _tiles[x, y] = isEdge ? Wall() : Floor();
             }
+    }
+
+    public void Decorate(Random rng, bool isStart)
+    {
+        int rubble = rng.Next(0, 6);
+        for (int n = 0; n < rubble; n++)
+        {
+            int x = rng.Next(1, Width - 1);
+            int y = rng.Next(1, Height - 1);
+            if (_tiles[x, y].IsWalkable)
+                _tiles[x, y] = Rubble();
+        }
+
+        if (isStart) return;
+
+        switch (rng.Next(6))
+        {
+            case 1:
+                _tiles[3, 3] = Pillar();
+                _tiles[Width - 4, 3] = Pillar();
+                _tiles[3, Height - 4] = Pillar();
+                _tiles[Width - 4, Height - 4] = Pillar();
+                break;
+            case 2:
+                for (int y = 3; y <= Height - 4; y += 2)
+                {
+                    _tiles[6, y] = Pillar();
+                    _tiles[Width - 7, y] = Pillar();
+                }
+                break;
+            case 3:
+                _tiles[Width / 2 - 3, Height / 2 - 1] = Pillar();
+                _tiles[Width / 2 + 3, Height / 2 - 1] = Pillar();
+                _tiles[Width / 2 - 3, Height / 2 + 1] = Pillar();
+                _tiles[Width / 2 + 3, Height / 2 + 1] = Pillar();
+                break;
+            case 4:
+            case 5:
+                int count = rng.Next(2, 5);
+                for (int n = 0; n < count; n++)
+                {
+                    int x = rng.Next(3, Width - 3);
+                    int y = rng.Next(3, Height - 3);
+                    _tiles[x, y] = Pillar();
+                }
+                break;
+        }
+
+        _tiles[Width / 2, Height / 2] = Floor();
     }
 
     public Point GetDoorPosition(Direction dir) => dir switch
@@ -87,10 +152,15 @@ internal class Room
         surface.SetGlyph(pos.X, pos.Y, Glyph.Door, Color.White, Color.Black);
     }
 
-    // Hvit forgrunn = vis flisens egne farger uendret.
-    private static Tile Floor() => new()
-    { Glyph = Glyph.Floor, Foreground = Color.White, Background = Color.Black, IsWalkable = true };
+    private Tile Floor() => new()
+    { Glyph = _floorGlyph, Foreground = Color.White, Background = Color.Black, IsWalkable = true };
 
-    private static Tile Wall() => new()
-    { Glyph = Glyph.Wall, Foreground = Color.White, Background = Color.Black, IsWalkable = false };
+    private Tile Wall() => new()
+    { Glyph = _wallGlyph, Foreground = Color.White, Background = Color.Black, IsWalkable = false };
+
+    private static Tile Pillar() => new()
+    { Glyph = Glyph.Pillar, Foreground = Color.White, Background = Color.Black, IsWalkable = false };
+
+    private static Tile Rubble() => new()
+    { Glyph = Glyph.Rubble, Foreground = Color.White, Background = Color.Black, IsWalkable = true };
 }

@@ -9,7 +9,6 @@ internal class RootScreen : ScreenSurface
 {
     private const int MapWidth = 20;
     private const int MapHeight = 12;
-    private static readonly Color FloorBackground = new(44, 44, 54);
 
     private readonly ScreenSurface _status;
     private readonly Dungeon _dungeon;
@@ -24,11 +23,9 @@ internal class RootScreen : ScreenSurface
 
     public RootScreen(Character character) : base(MapWidth, MapHeight)
     {
-        // Bytt DENNE flatens font til tileset-et (16x16 grafiske fliser).
         Font = GameFonts.Tiles;
         FontSize = GameFonts.Tiles.GetFontSize(IFont.Sizes.One);
 
-        // Statuslinje som eget barn, med standard tekst-font, plassert nederst.
         _status = new ScreenSurface(80, 1) { UsePixelPositioning = true };
         _status.Position = new Point(0, MapHeight * GameFonts.Tiles.GlyphHeight);
         Children.Add(_status);
@@ -148,8 +145,8 @@ internal class RootScreen : ScreenSurface
     private void Render()
     {
         _dungeon.CurrentRoom.Render(Surface);
-        // Spilleren tegnes med hvit forgrunn (egne farger) og gulv-farget bakgrunn.
-        Surface.SetGlyph(_player.X, _player.Y, _player.TileIndex, Color.White, FloorBackground);
+        Surface.SetGlyph(_player.X, _player.Y, _player.TileIndex,
+                         Color.White, _dungeon.CurrentRoom.FloorBackground);
         Surface.IsDirty = true;
     }
 
@@ -167,8 +164,8 @@ internal class RootScreen : ScreenSurface
 
         string controls = c.Ability switch
         {
-            Ability.DiagonalMove => "QEZC: diagonal   M: map",
-            Ability.Blink => "Space: teleport   M: map",
+            Ability.DiagonalMove => "Arrows + QEZC   M: map",
+            Ability.Blink => "Arrows   Space: blink   M: map",
             _ => "Arrows: move   M: map"
         };
         s.Print(x, 0, controls, new Color(120, 120, 120));

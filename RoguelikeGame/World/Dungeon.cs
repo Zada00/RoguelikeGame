@@ -9,8 +9,8 @@ internal class Dungeon
     public int RoomWidth { get; }
     public int RoomHeight { get; }
 
-    // Et 2D rutenett av rom. _rooms[gx, gy] er rommet i den grid-cellen.
     private readonly Room[,] _rooms;
+    private readonly Random _rng = new();
 
     public int CurrentGridX { get; private set; }
     public int CurrentGridY { get; private set; }
@@ -26,19 +26,20 @@ internal class Dungeon
 
         for (int gx = 0; gx < GridWidth; gx++)
             for (int gy = 0; gy < GridHeight; gy++)
-                _rooms[gx, gy] = new Room(RoomWidth, RoomHeight);
+            {
+                var theme = (RoomTheme)_rng.Next(4);
+                var room = new Room(RoomWidth, RoomHeight, theme);
+                room.Decorate(_rng, isStart: gx == 0 && gy == 0);
+                _rooms[gx, gy] = room;
+            }
 
         GenerateMaze();
         CurrentRoom.IsVisited = true;
     }
 
-    // Klassisk maze-algoritme: "recursive backtracker".
-    // Vi starter i (0,0) og gjør en tilfeldig dybde-først-vandring til alle
-    // rom er besøkt. Hver gang vi går fra rom A til rom B, lager vi en dør 
-    // mellom dem. Resultatet er en labyrint der hvert rom kan nås fra alle andre.
     private void GenerateMaze()
     {
-        var rng = new Random();
+        var rng = _rng;
         var visited = new bool[GridWidth, GridHeight];
         var stack = new Stack<(int x, int y)>();
 
@@ -49,7 +50,6 @@ internal class Dungeon
         {
             var (cx, cy) = stack.Peek();
 
-            // Finn naboer i grid-en som ennå ikke er besøkt.
             var neighbors = new List<(int x, int y, Direction from, Direction to)>();
             if (cy > 0 && !visited[cx, cy - 1]) neighbors.Add((cx, cy - 1, Direction.North, Direction.South));
             if (cy < GridHeight - 1 && !visited[cx, cy + 1]) neighbors.Add((cx, cy + 1, Direction.South, Direction.North));
@@ -58,13 +58,12 @@ internal class Dungeon
 
             if (neighbors.Count == 0)
             {
-                stack.Pop();   // blindgate, gå tilbake
+                stack.Pop();
                 continue;
             }
 
             var (nx, ny, from, to) = neighbors[rng.Next(neighbors.Count)];
 
-            // Lag dør i begge rom (en dør "ut" av nåværende rom og en "inn" i naborommet).
             SetDoor(_rooms[cx, cy], from);
             SetDoor(_rooms[nx, ny], to);
 
@@ -84,7 +83,6 @@ internal class Dungeon
         }
     }
 
-    // Bytter til naborommet i gitt retning og returnerer den nye spillerposisjonen.
     public Point TransitionTo(Direction dir)
     {
         switch (dir)
@@ -97,8 +95,6 @@ internal class Dungeon
 
         CurrentRoom.IsVisited = true;
 
-        // Vi går "inn" i det nye rommet fra motsatt side - så plasser
-        // spilleren ett skritt innenfor den døra.
         Direction enterFrom = dir switch
         {
             Direction.North => Direction.South,
@@ -119,12 +115,10 @@ internal class Dungeon
         };
     }
 
-    // Henter rommet på en gitt grid-posisjon. Returnerer null hvis utenfor.
     public Room? GetRoom(int gridX, int gridY)
     {
         if (gridX < 0 || gridY < 0 || gridX >= GridWidth || gridY >= GridHeight)
             return null;
         return _rooms[gridX, gridY];
     }
-
 }

@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 
 TILE = 32
 COLS = 8
-ROWS = 2
+ROWS = 3
 OUTLINE = (22, 18, 30, 255)
 
 sheet = Image.new("RGBA", (COLS * TILE, ROWS * TILE), (0, 0, 0, 0))
@@ -128,6 +128,65 @@ rect(6, 0, 0, 31, 31, fb)
 shaded(6, 10, 2, 21, 31, (122, 122, 132, 255), 22, 30)
 rect(6, 8, 2, 23, 5, lighten((122, 122, 132, 255), 18))
 rect(6, 8, 27, 23, 30, darken((122, 122, 132, 255), 10))
+
+# ---- tema-varianter: gulv (16,17,20) og vegg (18,19,21) ----
+def floorvar(i, base, grid=True):
+    rect(i, 0, 0, 31, 31, base)
+    if grid:
+        rect(i, 0, 0, 31, 1, darken(base, 10))
+        rect(i, 0, 0, 1, 31, darken(base, 10))
+        rect(i, 0, 30, 31, 31, darken(base, 18))
+        rect(i, 30, 0, 31, 31, darken(base, 18))
+
+
+def wallvar(i, base):
+    rect(i, 0, 0, 31, 31, base)
+    rect(i, 0, 0, 31, 2, lighten(base, 26))
+    rect(i, 0, 29, 31, 31, darken(base, 30))
+    m = darken(base, 44)
+    rect(i, 0, 15, 31, 16, m)
+    rect(i, 15, 2, 16, 14, m)
+    rect(i, 7, 17, 8, 29, m)
+    rect(i, 23, 17, 24, 29, m)
+
+
+# 16 moss-gulv
+floorvar(16, (46, 50, 50, 255))
+for mx, my in [(8, 10), (20, 22), (14, 6), (24, 14)]:
+    ellipse(16, mx, my, mx + 4, my + 3, (54, 86, 50, 255))
+    ellipse(16, mx + 1, my + 1, mx + 2, my + 2, (72, 110, 60, 255))
+
+# 17 krypt-gulv
+floorvar(17, (56, 56, 64, 255))
+for cx in (10, 22):
+    rect(17, cx, 4, cx, 27, darken((56, 56, 64, 255), 22))
+for sx, sy in [(7, 9), (19, 18), (25, 8)]:
+    put(17, sx, sy, (132, 128, 118, 255))
+
+# 18 moss-vegg
+wallvar(18, (90, 104, 92, 255))
+for mx in (6, 18, 27):
+    rect(18, mx, 2, mx, 7, (58, 92, 54, 255))
+    put(18, mx, 8, (72, 110, 62, 255))
+
+# 19 krypt-vegg
+wallvar(19, (98, 100, 116, 255))
+ox19, oy19 = org(19)
+d.line([ox19 + 5, oy19 + 4, ox19 + 11, oy19 + 13], fill=darken((98, 100, 116, 255), 40), width=1)
+d.line([ox19 + 24, oy19 + 18, ox19 + 19, oy19 + 27], fill=darken((98, 100, 116, 255), 40), width=1)
+
+# 20 hule-gulv
+floorvar(20, (60, 50, 40, 255), grid=False)
+for dx2, dy2 in [(7, 8), (16, 20), (22, 11), (11, 24), (26, 25), (5, 17)]:
+    ellipse(20, dx2, dy2, dx2 + 2, dy2 + 1, darken((60, 50, 40, 255), 14))
+    put(20, dx2, dy2, lighten((60, 50, 40, 255), 14))
+
+# 21 hule-vegg
+rect(21, 0, 0, 31, 31, (98, 82, 64, 255))
+rect(21, 0, 0, 31, 2, lighten((98, 82, 64, 255), 22))
+rect(21, 0, 29, 31, 31, darken((98, 82, 64, 255), 28))
+for bx, by in [(6, 8), (18, 6), (12, 18), (24, 20), (9, 24), (22, 12)]:
+    ellipse(21, bx, by, bx + 4, by + 3, darken((98, 82, 64, 255), 18))
 
 # ================================================================= heroes
 SKIN = (232, 188, 146, 255)
@@ -299,4 +358,17 @@ blit(5, 8, 6)
 for n, hi in enumerate([8, 11, 14]):
     blit(hi, 4 + n * 3, 3, on_floor=True)
 scene.resize((scene.width * 4, scene.height * 4), Image.NEAREST).save("/home/claude/scene_preview.png")
+
+# tema-forhåndsvisning: fire små rom side om side
+themes = [(1, 2), (16, 18), (17, 19), (20, 21)]
+tw, th = 8, 6
+tp = Image.new("RGBA", (4 * tw * TILE, th * TILE), (12, 12, 18, 255))
+for ti, (fl, wl) in enumerate(themes):
+    for x in range(tw):
+        for y in range(th):
+            edge = x in (0, tw - 1) or y in (0, th - 1)
+            g = wl if edge else fl
+            gx, gy = org(g)
+            tp.alpha_composite(sheet.crop((gx, gy, gx + TILE, gy + TILE)), ((ti * tw + x) * TILE, y * TILE))
+tp.resize((tp.width * 3, tp.height * 3), Image.NEAREST).save("/home/claude/themes_preview.png")
 print("previews done")
