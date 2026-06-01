@@ -12,9 +12,12 @@ internal class RootScreen : ScreenSurface
     private const int MapHeight = 12;
 
     private readonly ScreenSurface _status;
+    private readonly ScreenSurface _overlay;   // tekst-lag for skade-tall
     private readonly Dungeon _dungeon;
     private readonly Player _player;
     private readonly Random _rng = new();
+    private double _hurtTimer;
+    private bool _dead;
 
     private enum FadeState { None, Out, In }
     private FadeState _fade = FadeState.None;
@@ -27,6 +30,10 @@ internal class RootScreen : ScreenSurface
     private double _effectTimer;
     private string _lastAction = "";
 
+    // flytende skade-tall
+    private class Floater { public int Cx; public int Cy; public string Text = ""; public Color Color; public double Timer; }
+    private readonly List<Floater> _floaters = new();
+
     public RootScreen(Character character) : base(MapWidth, MapHeight)
     {
         Font = GameFonts.Tiles;
@@ -35,6 +42,13 @@ internal class RootScreen : ScreenSurface
         _status = new ScreenSurface(80, 1) { UsePixelPositioning = true };
         _status.Position = new Point(0, MapHeight * GameFonts.Tiles.GlyphHeight);
         Children.Add(_status);
+
+        // Gjennomsiktig tekst-lag oppå kartet, til skade-tall.
+        _overlay = new ScreenSurface(80, 24) { UsePixelPositioning = true };
+        _overlay.Position = new Point(0, 0);
+        _overlay.Surface.DefaultBackground = Color.Transparent;
+        _overlay.Surface.Clear();
+        Children.Add(_overlay);
 
         _dungeon = new Dungeon(gridWidth: 5, gridHeight: 5, roomWidth: MapWidth, roomHeight: MapHeight);
         _player = new Player(character, MapWidth / 2, MapHeight / 2);
@@ -59,6 +73,8 @@ internal class RootScreen : ScreenSurface
 
     public override bool ProcessKeyboard(Keyboard keyboard)
     {
+        if (_dead) return true;
+
         if (_fade != FadeState.None) return true;
 
         if (keyboard.IsKeyPressed(Keys.M))
@@ -96,15 +112,15 @@ internal class RootScreen : ScreenSurface
             return true;
         }
 
+        // gå inn i et monster = (foreløpig) blokkert; bruk Q for å angripe det
         if (room.MonsterAt(nx, ny) != null)
-        {
             return true;
-        }
 
         if (room.IsWalkable(nx, ny))
         {
             _player.X = nx;
             _player.Y = ny;
+            MonstersAct();
             Render();
             DrawStatus();
         }
@@ -112,11 +128,16 @@ internal class RootScreen : ScreenSurface
     }
 
     // -------------------------------------------------------- attacks
+    private int Damage => _player.Character.Attack;
+
     private void BasicAttack()
     {
         var c = _player.Character;
-        ShowEffect(Resolve(c.BasicShape), Glow(c.Color, 45));
+        var tiles = Resolve(c.BasicShape);
+        ShowEffect(tiles, Glow(c.Color, 45));
         _lastAction = c.Ranged ? "Shot!" : "Strike!";
+        ApplyDamage(tiles, Damage);
+        MonstersAct();
         Render();
         DrawStatus();
     }
@@ -124,8 +145,11 @@ internal class RootScreen : ScreenSurface
     private void HeavyAttack()
     {
         var c = _player.Character;
-        ShowEffect(Resolve(c.HeavyShape), Glow(c.Color, 90));
+        var tiles = Resolve(c.HeavyShape);
+        ShowEffect(tiles, Glow(c.Color, 90));
         _lastAction = "Heavy: " + HeavyName(c.HeavyShape);
+        ApplyDamage(tiles, Damage);
+        MonstersAct();
         Render();
         DrawStatus();
     }
@@ -137,24 +161,95 @@ internal class RootScreen : ScreenSurface
             case Special.Blink:
                 Blink(); _lastAction = "Teleport!"; break;
             case Special.Whirlwind:
-                ShowEffect(Around(1), new Color(245, 150, 70)); _lastAction = "Whirlwind!"; break;
+                {
+                    var t = Around(1);
+                    ShowEffect(t, new Color(245, 150, 70)); _lastAction = "Whirlwind!";
+                    ApplyDamage(t, Damage); break;
+                }
             case Special.Bash:
-                ShowEffect(Resolve(AttackShape.Sweep), new Color(150, 190, 235)); _lastAction = "Shield bash!"; break;
+                {
+                    var t = Resolve(AttackShape.Sweep);
+                    ShowEffect(t, new Color(150, 190, 235)); _lastAction = "Shield bash!";
+                    ApplyDamage(t, Damage); break;
+                }
             case Special.Volley:
                 {
                     var (dx, dy) = Offset(_player.Facing);
-                    ShowEffect(Ray(_player.X, _player.Y, dx, dy, 9), new Color(150, 220, 90));
-                    _lastAction = "Volley!"; break;
+                    var t = Ray(_player.X, _player.Y, dx, dy, 9);
+                    ShowEffect(t, new Color(150, 220, 90)); _lastAction = "Volley!";
+                    ApplyDamage(t, Damage); break;
                 }
             case Special.Nova:
-                ShowEffect(Around(2), new Color(130, 235, 140)); _lastAction = "Death nova!"; break;
+                {
+                    var t = Around(2);
+                    ShowEffect(t, new Color(130, 235, 140)); _lastAction = "Death nova!";
+                    ApplyDamage(t, Damage); break;
+                }
             case Special.HolyLight:
                 ShowEffect(Around(2), new Color(245, 225, 140)); _lastAction = "Holy light!"; break;
             default:
                 _lastAction = "No special"; break;
         }
+        MonstersAct();
         Render();
         DrawStatus();
+    }
+
+    // Påfør skade til alle monstre på de gitte rutene, vis tall, fjern døde.
+    private void ApplyDamage(List<Point> tiles, int dmg)
+    {
+        var room = _dungeon.CurrentRoom;
+        var dead = new List<Monster>();
+        var summary = new List<string>();
+
+        foreach (var t in tiles)
+        {
+            var m = room.MonsterAt(t.X, t.Y);
+            if (m == null) continue;
+
+            m.Hp -= dmg;
+            AddFloater(t.X, t.Y, $"-{dmg}", new Color(255, 95, 80));
+
+            if (m.Hp <= 0) { dead.Add(m); summary.Add($"{m.Name} dies"); }
+            else summary.Add($"{m.Name} {m.Hp}/{m.MaxHp}");
+        }
+
+        foreach (var m in dead) room.Monsters.Remove(m);
+        if (summary.Count > 0) _lastAction = string.Join(", ", summary);
+    }
+
+    // Kjør én runde med monster-turer. Kalles etter hver spiller-handling.
+    private void MonstersAct()
+    {
+        var room = _dungeon.CurrentRoom;
+
+        // ToList-kopi så vi trygt kan iterere selv om lista endres.
+        foreach (var m in new List<Monster>(room.Monsters))
+        {
+            int dmg = m.TakeTurn(_player, room);
+            if (dmg > 0)
+            {
+                _player.Hp -= dmg;
+                AddFloater(_player.X, _player.Y, $"-{dmg}", new Color(255, 200, 80));
+                _hurtTimer = 0.15;
+                _lastAction = $"{m.Name} hits you for {dmg}";
+            }
+        }
+
+        if (_player.Hp <= 0 && !_dead)
+        {
+            _dead = true;
+            _player.Hp = 0;
+            var over = new GameOverScreen(_player.Character.Name);
+            Game.Instance.Screen = over;
+            over.IsFocused = true;
+        }
+    }
+
+    private void AddFloater(int tileX, int tileY, string text, Color color)
+    {
+        // kartruter er 32px; tekst-laget bruker 8x16-font (4 celler bred, 2 høy per rute)
+        _floaters.Add(new Floater { Cx = tileX * 4, Cy = tileY * 2, Text = text, Color = color, Timer = 0.7 });
     }
 
     // -------------------------------------------------------- attack shapes
@@ -162,7 +257,7 @@ internal class RootScreen : ScreenSurface
     {
         var (dx, dy) = Offset(_player.Facing);
         int px = _player.X, py = _player.Y;
-        int perpX = dy, perpY = dx;     // perpendicular to facing
+        int perpX = dy, perpY = dx;
         var t = new List<Point>();
 
         switch (shape)
@@ -229,7 +324,6 @@ internal class RootScreen : ScreenSurface
         return t;
     }
 
-    // En stråle fra (sx,sy) i retning (dx,dy), stopper i vegg/kant.
     private List<Point> Ray(int sx, int sy, int dx, int dy, int len)
     {
         var room = _dungeon.CurrentRoom;
@@ -286,7 +380,7 @@ internal class RootScreen : ScreenSurface
         {
             int x = _rng.Next(1, room.Width - 1);
             int y = _rng.Next(1, room.Height - 1);
-            if (room.IsWalkable(x, y)) { _player.X = x; _player.Y = y; break; }
+            if (room.IsWalkable(x, y) && room.MonsterAt(x, y) == null) { _player.X = x; _player.Y = y; break; }
         }
     }
 
@@ -294,10 +388,26 @@ internal class RootScreen : ScreenSurface
     {
         base.Update(delta);
 
+        if (_hurtTimer > 0)
+        {
+            _hurtTimer -= delta.TotalSeconds;
+            if (_hurtTimer <= 0) Render();
+        }
+
         if (_effectTimer > 0)
         {
             _effectTimer -= delta.TotalSeconds;
             if (_effectTimer <= 0) { _effectTiles.Clear(); Render(); }
+        }
+
+        if (_floaters.Count > 0)
+        {
+            for (int i = _floaters.Count - 1; i >= 0; i--)
+            {
+                _floaters[i].Timer -= delta.TotalSeconds;
+                if (_floaters[i].Timer <= 0) _floaters.RemoveAt(i);
+            }
+            DrawOverlay();
         }
 
         if (_fade == FadeState.None) return;
@@ -326,6 +436,14 @@ internal class RootScreen : ScreenSurface
         }
     }
 
+    private void DrawOverlay()
+    {
+        _overlay.Surface.Clear();
+        foreach (var f in _floaters)
+            _overlay.Surface.Print(f.Cx, f.Cy, f.Text, f.Color);
+        _overlay.IsDirty = true;
+    }
+
     private void Render()
     {
         _dungeon.CurrentRoom.Render(Surface);
@@ -339,6 +457,9 @@ internal class RootScreen : ScreenSurface
 
         Surface.SetGlyph(_player.X, _player.Y, _player.TileIndex,
                          Color.White, _dungeon.CurrentRoom.FloorBackground);
+
+
+
         Surface.IsDirty = true;
     }
 
@@ -370,8 +491,8 @@ internal class RootScreen : ScreenSurface
         x += c.Name.Length + 2;
         s.Print(x, 0, $"HP {_player.Hp}/{c.MaxHp}", new Color(210, 120, 120));
         x += 11;
-        s.Print(x, 0, "Q/W/E: attack", new Color(120, 120, 120));
-        x += 14;
+        s.Print(x, 0, "Q/W/E", new Color(120, 120, 120));
+        x += 7;
         if (_lastAction.Length > 0)
             s.Print(x, 0, _lastAction, new Color(220, 210, 140));
         s.IsDirty = true;
