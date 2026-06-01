@@ -160,15 +160,12 @@ internal class RootScreen : ScreenSurface
         s.Print(x, 0, c.Name, c.Color);
         x += c.Name.Length + 2;
         s.Print(x, 0, $"HP {_player.Hp}/{c.MaxHp}", new Color(210, 120, 120));
-        x += 12;
-
-        string controls = c.Ability switch
-        {
-            Ability.DiagonalMove => "Arrows + QEZC   M: map",
-            Ability.Blink => "Arrows   Space: blink   M: map",
-            _ => "Arrows: move   M: map"
-        };
-        s.Print(x, 0, controls, new Color(120, 120, 120));
+        x += 11;
+        s.Print(x, 0, $"ATK {c.Attack}", new Color(220, 180, 120));
+        x += 7;
+        s.Print(x, 0, $"DEF {c.Defense}", new Color(140, 180, 220));
+        x += 8;
+        s.Print(x, 0, "M: map", new Color(120, 120, 120));
         s.IsDirty = true;
     }
 }
