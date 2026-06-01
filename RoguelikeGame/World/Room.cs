@@ -1,4 +1,4 @@
-﻿using SadConsole;
+using SadConsole;
 using SadRogue.Primitives;
 
 namespace RoguelikeGame;
@@ -14,6 +14,7 @@ internal class Room
     public RoomTheme Theme { get; }
     public Color FloorBackground { get; }
     public List<Monster> Monsters { get; } = new();
+    public Point? Stairs { get; set; }
 
     private readonly Tile[,] _tiles;
     private readonly int _floorGlyph;
@@ -33,10 +34,10 @@ internal class Room
 
         (_floorGlyph, _wallGlyph, FloorBackground) = theme switch
         {
-            RoomTheme.Moss => (Glyph.MossFloor, Glyph.MossWall, new Color(46, 50, 50)),
+            RoomTheme.Moss  => (Glyph.MossFloor,  Glyph.MossWall,  new Color(46, 50, 50)),
             RoomTheme.Crypt => (Glyph.CryptFloor, Glyph.CryptWall, new Color(56, 56, 64)),
-            RoomTheme.Cave => (Glyph.CaveFloor, Glyph.CaveWall, new Color(60, 50, 40)),
-            _ => (Glyph.Floor, Glyph.Wall, new Color(44, 44, 54)),
+            RoomTheme.Cave  => (Glyph.CaveFloor,  Glyph.CaveWall,  new Color(60, 50, 40)),
+            _               => (Glyph.Floor,      Glyph.Wall,      new Color(44, 44, 54)),
         };
 
         _tiles = new Tile[width, height];
@@ -97,15 +98,17 @@ internal class Room
         _tiles[Width / 2, Height / 2] = Floor();
     }
 
-    // Plasser 0-3 tilfeldige monstre på ledige gulvruter. Ikke i startrommet.
-    public void SpawnMonsters(Random rng, bool isStart)
+    // Plasser 0-N monstre. Antall og styrke øker med etasje-dybde.
+    public void SpawnMonsters(Random rng, bool isStart, int depth)
     {
         if (isStart) return;
 
-        var makers = new Func<int, int, Monster>[]
+        var makers = new Func<int, int, int, Monster>[]
         { Monster.Rat, Monster.Goblin, Monster.Skeleton, Monster.Slime };
 
-        int count = rng.Next(0, 4);
+        int count = rng.Next(1, 4) + (depth - 1);
+        if (count > 7) count = 7;
+
         for (int n = 0; n < count; n++)
         {
             for (int attempt = 0; attempt < 20; attempt++)
@@ -115,7 +118,7 @@ internal class Room
                 bool center = x == Width / 2 && y == Height / 2;
                 if (IsWalkable(x, y) && !center && MonsterAt(x, y) == null)
                 {
-                    Monsters.Add(makers[rng.Next(makers.Length)](x, y));
+                    Monsters.Add(makers[rng.Next(makers.Length)](x, y, depth));
                     break;
                 }
             }
@@ -124,21 +127,23 @@ internal class Room
 
     public Monster? MonsterAt(int x, int y) => Monsters.FirstOrDefault(m => m.X == x && m.Y == y);
 
+    public bool IsStairs(int x, int y) => Stairs.HasValue && Stairs.Value.X == x && Stairs.Value.Y == y;
+
     public Point GetDoorPosition(Direction dir) => dir switch
     {
         Direction.North => new Point(Width / 2, 0),
         Direction.South => new Point(Width / 2, Height - 1),
-        Direction.West => new Point(0, Height / 2),
-        Direction.East => new Point(Width - 1, Height / 2),
+        Direction.West  => new Point(0, Height / 2),
+        Direction.East  => new Point(Width - 1, Height / 2),
         _ => throw new ArgumentException("Unknown direction")
     };
 
     public Direction? GetDoorAt(int x, int y)
     {
-        if (HasDoorNorth && x == Width / 2 && y == 0) return Direction.North;
+        if (HasDoorNorth && x == Width / 2 && y == 0)          return Direction.North;
         if (HasDoorSouth && x == Width / 2 && y == Height - 1) return Direction.South;
-        if (HasDoorWest && x == 0 && y == Height / 2) return Direction.West;
-        if (HasDoorEast && x == Width - 1 && y == Height / 2) return Direction.East;
+        if (HasDoorWest  && x == 0 && y == Height / 2)         return Direction.West;
+        if (HasDoorEast  && x == Width - 1 && y == Height / 2) return Direction.East;
         return null;
     }
 
@@ -158,6 +163,9 @@ internal class Room
                 surface.SetGlyph(x, y, t.Glyph, t.Foreground, t.Background);
             }
 
+        if (Stairs.HasValue)
+            surface.SetGlyph(Stairs.Value.X, Stairs.Value.Y, Glyph.StairsDown, Color.White, Color.Black);
+
         DrawDoorIfPresent(surface, Direction.North);
         DrawDoorIfPresent(surface, Direction.South);
         DrawDoorIfPresent(surface, Direction.East);
@@ -170,8 +178,8 @@ internal class Room
         {
             Direction.North => HasDoorNorth,
             Direction.South => HasDoorSouth,
-            Direction.East => HasDoorEast,
-            Direction.West => HasDoorWest,
+            Direction.East  => HasDoorEast,
+            Direction.West  => HasDoorWest,
             _ => false
         };
         if (!hasDoor) return;

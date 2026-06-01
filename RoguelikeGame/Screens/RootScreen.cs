@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using SadConsole;
 using SadConsole.Input;
@@ -12,11 +12,12 @@ internal class RootScreen : ScreenSurface
     private const int MapHeight = 12;
 
     private readonly ScreenSurface _status;
-    private readonly ScreenSurface _overlay;   // tekst-lag for skade-tall
-    private readonly Dungeon _dungeon;
+    private readonly ScreenSurface _overlay;
+    private Dungeon _dungeon;
     private readonly Player _player;
     private readonly Random _rng = new();
-    private double _hurtTimer;
+
+    private int _depth = 1;
     private bool _dead;
 
     private enum FadeState { None, Out, In }
@@ -28,9 +29,9 @@ internal class RootScreen : ScreenSurface
     private readonly List<Point> _effectTiles = new();
     private Color _effectColor;
     private double _effectTimer;
+    private double _hurtTimer;
     private string _lastAction = "";
 
-    // flytende skade-tall
     private class Floater { public int Cx; public int Cy; public string Text = ""; public Color Color; public double Timer; }
     private readonly List<Floater> _floaters = new();
 
@@ -43,14 +44,13 @@ internal class RootScreen : ScreenSurface
         _status.Position = new Point(0, MapHeight * GameFonts.Tiles.GlyphHeight);
         Children.Add(_status);
 
-        // Gjennomsiktig tekst-lag oppå kartet, til skade-tall.
         _overlay = new ScreenSurface(80, 24) { UsePixelPositioning = true };
         _overlay.Position = new Point(0, 0);
         _overlay.Surface.DefaultBackground = Color.Transparent;
         _overlay.Surface.Clear();
         Children.Add(_overlay);
 
-        _dungeon = new Dungeon(gridWidth: 5, gridHeight: 5, roomWidth: MapWidth, roomHeight: MapHeight);
+        _dungeon = new Dungeon(5, 5, MapWidth, MapHeight, _depth);
         _player = new Player(character, MapWidth / 2, MapHeight / 2);
 
         ApplyExploreAbility();
@@ -74,7 +74,6 @@ internal class RootScreen : ScreenSurface
     public override bool ProcessKeyboard(Keyboard keyboard)
     {
         if (_dead) return true;
-
         if (_fade != FadeState.None) return true;
 
         if (keyboard.IsKeyPressed(Keys.M))
@@ -85,15 +84,15 @@ internal class RootScreen : ScreenSurface
             return true;
         }
 
-        if (keyboard.IsKeyPressed(Keys.Q)) { BasicAttack(); return true; }
-        if (keyboard.IsKeyPressed(Keys.W)) { HeavyAttack(); return true; }
+        if (keyboard.IsKeyPressed(Keys.Q)) { BasicAttack();   return true; }
+        if (keyboard.IsKeyPressed(Keys.W)) { HeavyAttack();   return true; }
         if (keyboard.IsKeyPressed(Keys.E)) { SpecialAttack(); return true; }
 
         int dx = 0, dy = 0;
-        if (keyboard.IsKeyPressed(Keys.Up)) dy = -1;
-        else if (keyboard.IsKeyPressed(Keys.Down)) dy = 1;
-        else if (keyboard.IsKeyPressed(Keys.Left)) dx = -1;
-        else if (keyboard.IsKeyPressed(Keys.Right)) dx = 1;
+        if (keyboard.IsKeyPressed(Keys.Up))         dy = -1;
+        else if (keyboard.IsKeyPressed(Keys.Down))  dy =  1;
+        else if (keyboard.IsKeyPressed(Keys.Left))  dx = -1;
+        else if (keyboard.IsKeyPressed(Keys.Right)) dx =  1;
 
         if (dx == 0 && dy == 0) return false;
 
@@ -112,7 +111,6 @@ internal class RootScreen : ScreenSurface
             return true;
         }
 
-        // gå inn i et monster = (foreløpig) blokkert; bruk Q for å angripe det
         if (room.MonsterAt(nx, ny) != null)
             return true;
 
@@ -120,11 +118,31 @@ internal class RootScreen : ScreenSurface
         {
             _player.X = nx;
             _player.Y = ny;
+
+            if (room.IsStairs(nx, ny))
+            {
+                Descend();
+                return true;
+            }
+
             MonstersAct();
             Render();
             DrawStatus();
         }
         return true;
+    }
+
+    // Gå ned en etasje: ny dungeon, dypere og hardere.
+    private void Descend()
+    {
+        _depth++;
+        _dungeon = new Dungeon(5, 5, MapWidth, MapHeight, _depth);
+        _player.X = MapWidth / 2;
+        _player.Y = MapHeight / 2;
+        _lastAction = $"Descended to depth {_depth}";
+        ApplyExploreAbility();
+        Render();
+        DrawStatus();
     }
 
     // -------------------------------------------------------- attacks
@@ -161,30 +179,30 @@ internal class RootScreen : ScreenSurface
             case Special.Blink:
                 Blink(); _lastAction = "Teleport!"; break;
             case Special.Whirlwind:
-                {
-                    var t = Around(1);
-                    ShowEffect(t, new Color(245, 150, 70)); _lastAction = "Whirlwind!";
-                    ApplyDamage(t, Damage); break;
-                }
+            {
+                var t = Around(1);
+                ShowEffect(t, new Color(245, 150, 70)); _lastAction = "Whirlwind!";
+                ApplyDamage(t, Damage); break;
+            }
             case Special.Bash:
-                {
-                    var t = Resolve(AttackShape.Sweep);
-                    ShowEffect(t, new Color(150, 190, 235)); _lastAction = "Shield bash!";
-                    ApplyDamage(t, Damage); break;
-                }
+            {
+                var t = Resolve(AttackShape.Sweep);
+                ShowEffect(t, new Color(150, 190, 235)); _lastAction = "Shield bash!";
+                ApplyDamage(t, Damage); break;
+            }
             case Special.Volley:
-                {
-                    var (dx, dy) = Offset(_player.Facing);
-                    var t = Ray(_player.X, _player.Y, dx, dy, 9);
-                    ShowEffect(t, new Color(150, 220, 90)); _lastAction = "Volley!";
-                    ApplyDamage(t, Damage); break;
-                }
+            {
+                var (dx, dy) = Offset(_player.Facing);
+                var t = Ray(_player.X, _player.Y, dx, dy, 9);
+                ShowEffect(t, new Color(150, 220, 90)); _lastAction = "Volley!";
+                ApplyDamage(t, Damage); break;
+            }
             case Special.Nova:
-                {
-                    var t = Around(2);
-                    ShowEffect(t, new Color(130, 235, 140)); _lastAction = "Death nova!";
-                    ApplyDamage(t, Damage); break;
-                }
+            {
+                var t = Around(2);
+                ShowEffect(t, new Color(130, 235, 140)); _lastAction = "Death nova!";
+                ApplyDamage(t, Damage); break;
+            }
             case Special.HolyLight:
                 ShowEffect(Around(2), new Color(245, 225, 140)); _lastAction = "Holy light!"; break;
             default:
@@ -195,7 +213,6 @@ internal class RootScreen : ScreenSurface
         DrawStatus();
     }
 
-    // Påfør skade til alle monstre på de gitte rutene, vis tall, fjern døde.
     private void ApplyDamage(List<Point> tiles, int dmg)
     {
         var room = _dungeon.CurrentRoom;
@@ -218,12 +235,10 @@ internal class RootScreen : ScreenSurface
         if (summary.Count > 0) _lastAction = string.Join(", ", summary);
     }
 
-    // Kjør én runde med monster-turer. Kalles etter hver spiller-handling.
+    // Én runde monster-turer.
     private void MonstersAct()
     {
         var room = _dungeon.CurrentRoom;
-
-        // ToList-kopi så vi trygt kan iterere selv om lista endres.
         foreach (var m in new List<Monster>(room.Monsters))
         {
             int dmg = m.TakeTurn(_player, room);
@@ -248,7 +263,6 @@ internal class RootScreen : ScreenSurface
 
     private void AddFloater(int tileX, int tileY, string text, Color color)
     {
-        // kartruter er 32px; tekst-laget bruker 8x16-font (4 celler bred, 2 høy per rute)
         _floaters.Add(new Floater { Cx = tileX * 4, Cy = tileY * 2, Text = text, Color = color, Timer = 0.7 });
     }
 
@@ -275,37 +289,37 @@ internal class RootScreen : ScreenSurface
                 t.AddRange(Ray(px, py, dx, dy, 6));
                 break;
             case AttackShape.Sweep:
-                {
-                    var c = new Point(px + dx, py + dy);
-                    t.Add(c);
-                    t.Add(new Point(c.X + perpX, c.Y + perpY));
-                    t.Add(new Point(c.X - perpX, c.Y - perpY));
-                    break;
-                }
+            {
+                var c = new Point(px + dx, py + dy);
+                t.Add(c);
+                t.Add(new Point(c.X + perpX, c.Y + perpY));
+                t.Add(new Point(c.X - perpX, c.Y - perpY));
+                break;
+            }
             case AttackShape.WideSweep:
-                {
-                    var c = new Point(px + dx, py + dy);
-                    for (int k = -2; k <= 2; k++)
-                        t.Add(new Point(c.X + perpX * k, c.Y + perpY * k));
-                    break;
-                }
+            {
+                var c = new Point(px + dx, py + dy);
+                for (int k = -2; k <= 2; k++)
+                    t.Add(new Point(c.X + perpX * k, c.Y + perpY * k));
+                break;
+            }
             case AttackShape.Cone:
-                {
-                    t.Add(new Point(px + dx, py + dy));
-                    var c2 = new Point(px + dx * 2, py + dy * 2);
-                    t.Add(c2);
-                    t.Add(new Point(c2.X + perpX, c2.Y + perpY));
-                    t.Add(new Point(c2.X - perpX, c2.Y - perpY));
-                    break;
-                }
+            {
+                t.Add(new Point(px + dx, py + dy));
+                var c2 = new Point(px + dx * 2, py + dy * 2);
+                t.Add(c2);
+                t.Add(new Point(c2.X + perpX, c2.Y + perpY));
+                t.Add(new Point(c2.X - perpX, c2.Y - perpY));
+                break;
+            }
             case AttackShape.Blast:
-                {
-                    int cx = px + dx * 2, cy = py + dy * 2;
-                    for (int ax = -1; ax <= 1; ax++)
-                        for (int ay = -1; ay <= 1; ay++)
-                            t.Add(new Point(cx + ax, cy + ay));
-                    break;
-                }
+            {
+                int cx = px + dx * 2, cy = py + dy * 2;
+                for (int ax = -1; ax <= 1; ax++)
+                    for (int ay = -1; ay <= 1; ay++)
+                        t.Add(new Point(cx + ax, cy + ay));
+                break;
+            }
             case AttackShape.TripleLine:
                 t.AddRange(Ray(px, py, dx, dy, 6));
                 t.AddRange(Ray(px + perpX, py + perpY, dx, dy, 6));
@@ -364,13 +378,13 @@ internal class RootScreen : ScreenSurface
 
     private static string HeavyName(AttackShape s) => s switch
     {
-        AttackShape.WideSweep => "wide sweep",
-        AttackShape.Slam => "ground slam",
-        AttackShape.Cone => "flurry",
-        AttackShape.Blast => "blast",
+        AttackShape.WideSweep  => "wide sweep",
+        AttackShape.Slam       => "ground slam",
+        AttackShape.Cone       => "flurry",
+        AttackShape.Blast      => "blast",
         AttackShape.TripleLine => "volley spread",
-        AttackShape.Cross => "death cross",
-        _ => "swing",
+        AttackShape.Cross      => "death cross",
+        _                      => "swing",
     };
 
     private void Blink()
@@ -458,7 +472,10 @@ internal class RootScreen : ScreenSurface
         Surface.SetGlyph(_player.X, _player.Y, _player.TileIndex,
                          Color.White, _dungeon.CurrentRoom.FloorBackground);
 
-
+        if (_hurtTimer > 0)
+            Tint = new Color(180, 0, 0, 60);
+        else if (_fade == FadeState.None)
+            Tint = Color.Transparent;
 
         Surface.IsDirty = true;
     }
@@ -475,8 +492,8 @@ internal class RootScreen : ScreenSurface
     {
         Direction.North => (0, -1),
         Direction.South => (0, 1),
-        Direction.West => (-1, 0),
-        Direction.East => (1, 0),
+        Direction.West  => (-1, 0),
+        Direction.East  => (1, 0),
         _ => (0, 1)
     };
 
@@ -491,6 +508,8 @@ internal class RootScreen : ScreenSurface
         x += c.Name.Length + 2;
         s.Print(x, 0, $"HP {_player.Hp}/{c.MaxHp}", new Color(210, 120, 120));
         x += 11;
+        s.Print(x, 0, $"Depth {_depth}", new Color(150, 200, 150));
+        x += 9;
         s.Print(x, 0, "Q/W/E", new Color(120, 120, 120));
         x += 7;
         if (_lastAction.Length > 0)

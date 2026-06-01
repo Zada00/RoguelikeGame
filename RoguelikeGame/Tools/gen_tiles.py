@@ -388,6 +388,23 @@ goblin(25)
 skeleton(26)
 slime(27)
 
+# 7 stairs down - trinn som synker ned i mørket
+def stairs_down(i):
+    base = (44, 44, 54, 255)
+    rect(i, 0, 0, 31, 31, base)
+    rect(i, 0, 0, 31, 1, darken(base, 10))
+    rect(i, 0, 0, 1, 31, darken(base, 10))
+    rect(i, 4, 4, 27, 28, (14, 14, 18, 255))   # mørk sjakt
+    for n in range(6):
+        y = 6 + n * 3
+        x0 = 6 + n
+        shade = 100 - n * 13
+        rect(i, x0, y, 25, y + 1, (shade, shade, shade + 6, 255))
+        edge = min(255, shade + 34)
+        rect(i, x0, y, 25, y, (edge, edge, min(255, edge + 6), 255))
+
+stairs_down(7)
+
 sheet.save("/home/claude/tiles.png")
 print("tiles.png:", sheet.size)
 

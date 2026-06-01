@@ -1,12 +1,10 @@
-﻿namespace RoguelikeGame;
+namespace RoguelikeGame;
 
-// Which tile in tiles.png each thing uses. Order matches the generator.
 internal static class Glyph
 {
     public const int Solid = 0, Floor = 1, Wall = 2, Door = 3,
-                     Void = 4, Rubble = 5, Pillar = 6;
+                     Void = 4, Rubble = 5, Pillar = 6, StairsDown = 7;
 
-    // theme variants
     public const int MossFloor = 16, CryptFloor = 17,
                      MossWall = 18, CryptWall = 19,
                      CaveFloor = 20, CaveWall = 21;
