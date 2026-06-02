@@ -192,7 +192,7 @@ internal class RootScreen : ScreenSurface
         switch (c.Special)
         {
             case Special.Blink:
-                BlinkToward(dirX, dirY);
+                BlinkToMouse();
                 break;
             case Special.Whirlwind:
                 RadialBurst(8, c.ShotSpeed, 0.5, c.Attack, new Color(245, 150, 70));
@@ -247,21 +247,38 @@ internal class RootScreen : ScreenSurface
         }
     }
 
-    private void BlinkToward(double dirX, double dirY)
+    // Teleporter til ruta under musepekeren. Lander på nærmeste gangbare rute
+    // langs veien hvis selve målet er en vegg.
+    private void BlinkToMouse()
     {
+        int tile = GameFonts.Tiles.GlyphWidth;
+        var mouse = Game.Instance.Mouse;
+
+        // musens pikselposisjon -> rute-koordinat
+        double targetX = mouse.ScreenPosition.X / (double)tile;
+        double targetY = mouse.ScreenPosition.Y / (double)tile;
+
+        double dx = targetX - _px;
+        double dy = targetY - _py;
+        double dist = Math.Sqrt(dx * dx + dy * dy);
+        if (dist < 0.01) return;
+
+        double ux = dx / dist, uy = dy / dist;
         var room = _dungeon.CurrentRoom;
-        for (double d = 4.0; d >= 0; d -= 0.5)
+
+        // Gå innover fra målet til vi treffer en gangbar rute (så vi ikke havner i vegg).
+        for (double d = dist; d >= 0; d -= 0.5)
         {
-            int cx = (int)Math.Round(_px + dirX * d);
-            int cy = (int)Math.Round(_py + dirY * d);
+            int cx = (int)Math.Round(_px + ux * d);
+            int cy = (int)Math.Round(_py + uy * d);
             if (room.IsWalkable(cx, cy))
             {
-                _px += dirX * d;
-                _py += dirY * d;
+                _px += ux * d;
+                _py += uy * d;
                 _player.X = (int)Math.Round(_px);
                 _player.Y = (int)Math.Round(_py);
                 UpdatePlayerSurface();
-                break;
+                return;
             }
         }
     }
