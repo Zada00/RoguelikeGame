@@ -405,6 +405,14 @@ def stairs_down(i):
 
 stairs_down(7)
 
+# 15 bullet - liten lys orb (fargelegges av forgrunnsfargen i spillet)
+def bullet(i):
+    ellipse(i, 10, 10, 21, 21, (255, 255, 255, 90))   # glød
+    ellipse(i, 12, 12, 19, 19, (255, 255, 255, 255))  # kjerne
+    ellipse(i, 13, 13, 16, 16, (255, 255, 255, 255))
+
+bullet(15)
+
 sheet.save("/home/claude/tiles.png")
 print("tiles.png:", sheet.size)
 

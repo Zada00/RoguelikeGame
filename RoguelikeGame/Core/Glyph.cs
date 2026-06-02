@@ -5,6 +5,8 @@ internal static class Glyph
     public const int Solid = 0, Floor = 1, Wall = 2, Door = 3,
                      Void = 4, Rubble = 5, Pillar = 6, StairsDown = 7;
 
+    public const int Bullet = 15;
+
     public const int MossFloor = 16, CryptFloor = 17,
                      MossWall = 18, CryptWall = 19,
                      CaveFloor = 20, CaveWall = 21;
