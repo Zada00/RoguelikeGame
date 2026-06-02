@@ -6,13 +6,14 @@ internal class Bullet
 {
     public double Fx;
     public double Fy;
-    public double Vx;   // ruter per sekund
+    public double Vx;
     public double Vy;
     public int Damage;
-    public double Life; // sekunder igjen før den forsvinner
+    public double Life;
     public Color Color;
+    public bool Hostile;   // true = fiendens skudd (treffer spilleren)
 
-    public Bullet(double x, double y, double vx, double vy, int damage, double life, Color color)
+    public Bullet(double x, double y, double vx, double vy, int damage, double life, Color color, bool hostile = false)
     {
         Fx = x;
         Fy = y;
@@ -21,5 +22,6 @@ internal class Bullet
         Damage = damage;
         Life = life;
         Color = color;
+        Hostile = hostile;
     }
 }

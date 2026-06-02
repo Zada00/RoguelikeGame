@@ -98,13 +98,18 @@ internal class Room
         _tiles[Width / 2, Height / 2] = Floor();
     }
 
-    // Plasser 0-N monstre. Antall og styrke øker med etasje-dybde.
     public void SpawnMonsters(Random rng, bool isStart, int depth)
     {
         if (isStart) return;
 
-        var makers = new Func<int, int, int, Monster>[]
+        // Grunnpool: nærkjempere. Fra etasje 2 dukker også skyttere opp.
+        var makers = new List<Func<int, int, int, Monster>>
         { Monster.Rat, Monster.Goblin, Monster.Skeleton, Monster.Slime };
+        if (depth >= 2)
+        {
+            makers.Add(Monster.Cultist);
+            makers.Add(Monster.Seer);
+        }
 
         int count = rng.Next(1, 4) + (depth - 1);
         if (count > 7) count = 7;
@@ -118,7 +123,7 @@ internal class Room
                 bool center = x == Width / 2 && y == Height / 2;
                 if (IsWalkable(x, y) && !center && MonsterAt(x, y) == null)
                 {
-                    Monsters.Add(makers[rng.Next(makers.Length)](x, y, depth));
+                    Monsters.Add(makers[rng.Next(makers.Count)](x, y, depth));
                     break;
                 }
             }

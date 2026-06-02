@@ -413,6 +413,35 @@ def bullet(i):
 
 bullet(15)
 
+# 28 Cultist - hettekledd skytter som jager
+def cultist(i):
+    robe = (130, 55, 75, 255)
+    ellipse(i, 5, 28, 26, 31, (0, 0, 0, 70))
+    shaded(i, 7, 14, 24, 29, robe, 14, 20)
+    rect(i, 9, 28, 22, 29, darken(robe, 22))
+    shaded(i, 9, 5, 22, 17, darken(robe, 10), 12, 18)
+    ellipse(i, 11, 8, 20, 18, (24, 16, 24, 255))
+    put(i, 13, 12, (255, 80, 80, 255))
+    put(i, 18, 12, (255, 80, 80, 255))
+    ellipse(i, 12, 20, 19, 26, (255, 140, 120, 255))
+    ellipse(i, 14, 21, 17, 24, (255, 220, 190, 255))
+    outline_tile(i)
+
+# 29 Seer - svevende oye som forutser bevegelsen din
+def seer(i):
+    body = (95, 72, 135, 255)
+    ellipse(i, 7, 29, 24, 31, (0, 0, 0, 70))
+    ellipse(i, 6, 7, 25, 26, body)
+    ellipse(i, 9, 9, 22, 22, (236, 236, 246, 255))
+    ellipse(i, 12, 11, 19, 20, (120, 90, 205, 255))
+    ellipse(i, 14, 13, 18, 18, (18, 18, 28, 255))
+    put(i, 16, 14, (255, 255, 255, 255))
+    rect(i, 9, 9, 22, 10, darken(body, 12))
+    outline_tile(i)
+
+cultist(28)
+seer(29)
+
 sheet.save("/home/claude/tiles.png")
 print("tiles.png:", sheet.size)
 

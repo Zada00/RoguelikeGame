@@ -11,7 +11,9 @@ internal class RootScreen : ScreenSurface
     private const int MapWidth = 20;
     private const int MapHeight = 12;
     private const double MoveSpeed = 6.0;
-    private const double ManaRegen = 2.0;   // mana per sekund
+    private const double ManaRegen = 2.0;
+
+    private static readonly Color EnemyShotColor = new(255, 110, 80);
 
     private readonly ScreenSurface _status;
     private readonly ScreenSurface _playerSurface;
@@ -22,6 +24,7 @@ internal class RootScreen : ScreenSurface
     private readonly Player _player;
 
     private double _px, _py;
+    private double _playerVx, _playerVy;
     private int _depth = 1;
     private bool _dead;
     private double _hurtTimer;
@@ -102,7 +105,6 @@ internal class RootScreen : ScreenSurface
         if (_fade != FadeState.None) { UpdateFade(dt); return; }
         if (!IsFocused) return;
 
-        // mana-regen
         double maxMana = _player.Character.Mana;
         if (_mana < maxMana) _mana = Math.Min(maxMana, _mana + ManaRegen * dt);
         if ((int)_mana != _lastManaShown) { _lastManaShown = (int)_mana; DrawStatus(); }
@@ -118,11 +120,14 @@ internal class RootScreen : ScreenSurface
         if (vx != 0 || vy != 0)
         {
             if (vx != 0 && vy != 0) { vx *= 0.70710678; vy *= 0.70710678; }
+            _playerVx = vx * MoveSpeed;
+            _playerVy = vy * MoveSpeed;
             MovePlayer(vx * MoveSpeed * dt, vy * MoveSpeed * dt);
             UpdatePlayerSurface();
         }
+        else { _playerVx = 0; _playerVy = 0; }
 
-        // ---- skyting: hold venstre museknapp ----
+        // ---- skyting: venstre mus ----
         var mouse = Game.Instance.Mouse;
         if (mouse.LeftButtonDown && _fireCooldown <= 0 && TryAim(out double adx, out double ady))
         {
@@ -130,7 +135,7 @@ internal class RootScreen : ScreenSurface
             _fireCooldown = _player.Character.FireInterval;
         }
 
-        // ---- special: høyre museknapp (kant-trigget) ----
+        // ---- special: høyre mus ----
         bool rightDown = mouse.RightButtonDown;
         if (rightDown && !_rightWasDown)
         {
@@ -162,7 +167,6 @@ internal class RootScreen : ScreenSurface
         return true;
     }
 
-    // ---- vanlig skudd ----
     private void Fire(double dirX, double dirY)
     {
         var c = _player.Character;
@@ -174,11 +178,10 @@ internal class RootScreen : ScreenSurface
         {
             double a = baseAngle;
             if (count > 1) a += (i - (count - 1) / 2.0) * (spreadRad / (count - 1));
-            SpawnBullet(Math.Cos(a) * c.ShotSpeed, Math.Sin(a) * c.ShotSpeed, c.Attack, c.ShotLife, c.Color);
+            SpawnBullet(Math.Cos(a) * c.ShotSpeed, Math.Sin(a) * c.ShotSpeed, c.Attack, c.ShotLife, c.Color, false);
         }
     }
 
-    // ---- special ----
     private void DoSpecial(double dirX, double dirY)
     {
         var c = _player.Character;
@@ -191,25 +194,12 @@ internal class RootScreen : ScreenSurface
 
         switch (c.Special)
         {
-            case Special.Blink:
-                BlinkToMouse();
-                break;
-            case Special.Whirlwind:
-                RadialBurst(8, c.ShotSpeed, 0.5, c.Attack, new Color(245, 150, 70));
-                break;
-            case Special.Nova:
-                RadialBurst(14, c.ShotSpeed, 0.7, c.Attack, new Color(130, 235, 140));
-                break;
-            case Special.Volley:
-                Fan(baseAngle, 5, 28, c.ShotSpeed + 2, c.ShotLife, c.Attack, new Color(150, 220, 90));
-                break;
-            case Special.Bash:
-                Fan(baseAngle, 6, 70, c.ShotSpeed, 0.3, c.Attack + 2, new Color(150, 190, 235));
-                break;
-            case Special.HolyLight:
-                _player.Hp = Math.Min(c.MaxHp, _player.Hp + 8);
-                DrawStatus();
-                break;
+            case Special.Blink:     BlinkToMouse(); break;
+            case Special.Whirlwind: RadialBurst(8, c.ShotSpeed, 0.5, c.Attack, new Color(245, 150, 70)); break;
+            case Special.Nova:      RadialBurst(14, c.ShotSpeed, 0.7, c.Attack, new Color(130, 235, 140)); break;
+            case Special.Volley:    Fan(baseAngle, 5, 28, c.ShotSpeed + 2, c.ShotLife, c.Attack, new Color(150, 220, 90)); break;
+            case Special.Bash:      Fan(baseAngle, 6, 70, c.ShotSpeed, 0.3, c.Attack + 2, new Color(150, 190, 235)); break;
+            case Special.HolyLight: _player.Hp = Math.Min(c.MaxHp, _player.Hp + 8); DrawStatus(); break;
         }
 
         _mana -= cost;
@@ -233,7 +223,7 @@ internal class RootScreen : ScreenSurface
         for (int i = 0; i < count; i++)
         {
             double a = i * (2 * Math.PI / count);
-            SpawnBullet(Math.Cos(a) * speed, Math.Sin(a) * speed, dmg, life, color);
+            SpawnBullet(Math.Cos(a) * speed, Math.Sin(a) * speed, dmg, life, color, false);
         }
     }
 
@@ -243,38 +233,30 @@ internal class RootScreen : ScreenSurface
         for (int i = 0; i < count; i++)
         {
             double a = baseAngle + (i - (count - 1) / 2.0) * (spreadRad / Math.Max(1, count - 1));
-            SpawnBullet(Math.Cos(a) * speed, Math.Sin(a) * speed, dmg, life, color);
+            SpawnBullet(Math.Cos(a) * speed, Math.Sin(a) * speed, dmg, life, color, false);
         }
     }
 
-    // Teleporter til ruta under musepekeren. Lander på nærmeste gangbare rute
-    // langs veien hvis selve målet er en vegg.
     private void BlinkToMouse()
     {
         int tile = GameFonts.Tiles.GlyphWidth;
         var mouse = Game.Instance.Mouse;
-
-        // musens pikselposisjon -> rute-koordinat
         double targetX = mouse.ScreenPosition.X / (double)tile;
         double targetY = mouse.ScreenPosition.Y / (double)tile;
 
-        double dx = targetX - _px;
-        double dy = targetY - _py;
+        double dx = targetX - _px, dy = targetY - _py;
         double dist = Math.Sqrt(dx * dx + dy * dy);
         if (dist < 0.01) return;
 
         double ux = dx / dist, uy = dy / dist;
         var room = _dungeon.CurrentRoom;
-
-        // Gå innover fra målet til vi treffer en gangbar rute (så vi ikke havner i vegg).
         for (double d = dist; d >= 0; d -= 0.5)
         {
             int cx = (int)Math.Round(_px + ux * d);
             int cy = (int)Math.Round(_py + uy * d);
             if (room.IsWalkable(cx, cy))
             {
-                _px += ux * d;
-                _py += uy * d;
+                _px += ux * d; _py += uy * d;
                 _player.X = (int)Math.Round(_px);
                 _player.Y = (int)Math.Round(_py);
                 UpdatePlayerSurface();
@@ -283,17 +265,28 @@ internal class RootScreen : ScreenSurface
         }
     }
 
-    private void SpawnBullet(double vx, double vy, int damage, double life, Color color)
+    private void SpawnBullet(double vx, double vy, int damage, double life, Color color, bool hostile)
     {
         int tile = GameFonts.Tiles.GlyphWidth;
-        _bullets.Add(new Bullet(_px, _py, vx, vy, damage, life, color));
+        _bullets.Add(new Bullet(_px, _py, vx, vy, damage, life, color, hostile));
+        AddBulletView(_px, _py, color);
+    }
 
+    private void SpawnEnemyBullet(double sx, double sy, double vx, double vy, int damage, double life)
+    {
+        _bullets.Add(new Bullet(sx, sy, vx, vy, damage, life, EnemyShotColor, true));
+        AddBulletView(sx, sy, EnemyShotColor);
+    }
+
+    private void AddBulletView(double fx, double fy, Color color)
+    {
+        int tile = GameFonts.Tiles.GlyphWidth;
         var v = new ScreenSurface(1, 1) { UsePixelPositioning = true };
         v.Font = GameFonts.Tiles;
         v.FontSize = GameFonts.Tiles.GetFontSize(IFont.Sizes.One);
         v.Surface.DefaultBackground = Color.Transparent;
         v.Surface.SetGlyph(0, 0, Glyph.Bullet, Glow(color, 40), Color.Transparent);
-        v.Position = new Point((int)Math.Round(_px * tile), (int)Math.Round(_py * tile));
+        v.Position = new Point((int)Math.Round(fx * tile), (int)Math.Round(fy * tile));
         Children.Add(v);
         _bulletViews.Add(v);
     }
@@ -314,6 +307,18 @@ internal class RootScreen : ScreenSurface
             bool remove = false;
             if (b.Life <= 0) remove = true;
             else if (!room.IsWalkable((int)Math.Round(b.Fx), (int)Math.Round(b.Fy))) remove = true;
+            else if (b.Hostile)
+            {
+                double ddx = _px - b.Fx, ddy = _py - b.Fy;
+                if (ddx * ddx + ddy * ddy < 0.5 * 0.5)
+                {
+                    _player.Hp -= b.Damage;
+                    _hurtTimer = 0.12;
+                    DrawStatus();
+                    remove = true;
+                    if (_player.Hp <= 0 && !_dead) Die();
+                }
+            }
             else
             {
                 foreach (var m in room.Monsters)
@@ -355,7 +360,13 @@ internal class RootScreen : ScreenSurface
         for (int i = 0; i < monsters.Count && i < _monsterViews.Count; i++)
         {
             var m = monsters[i];
-            dmg += m.UpdateRealtime(dt, _px, _py, room);
+            dmg += m.UpdateRealtime(dt, _px, _py, _playerVx, _playerVy, room);
+
+            if (m.HasPendingShot)
+                SpawnEnemyBullet(m.Fx, m.Fy,
+                    m.PendingShotDx * m.ShotSpeed, m.PendingShotDy * m.ShotSpeed,
+                    Math.Max(1, m.Attack), 3.0);
+
             _monsterViews[i].Position = new Point(
                 (int)Math.Round(m.Fx * tile), (int)Math.Round(m.Fy * tile));
         }
@@ -512,7 +523,7 @@ internal class RootScreen : ScreenSurface
         s.Print(x, 0, $"HP {_player.Hp}/{c.MaxHp}", new Color(210, 120, 120)); x += 11;
         s.Print(x, 0, $"MP {(int)_mana}/{c.Mana}", new Color(120, 170, 230)); x += 10;
         s.Print(x, 0, $"Depth {_depth}", new Color(150, 200, 150)); x += 9;
-        s.Print(x, 0, "L-mouse: shoot   R-mouse: special", new Color(120, 120, 120));
+        s.Print(x, 0, "L: shoot  R: special", new Color(120, 120, 120));
         s.IsDirty = true;
     }
 }
