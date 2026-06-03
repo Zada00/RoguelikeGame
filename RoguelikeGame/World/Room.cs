@@ -42,19 +42,17 @@ internal class Room
             _               => (Glyph.Floor,      Glyph.Wall,      new Color(44, 44, 54)),
         };
 
-        // alt starter som vegg/fjell; Build() graver ut gulvet
         _tiles = new Tile[width, height];
         for (int x = 0; x < Width; x++)
             for (int y = 0; y < Height; y++)
                 _tiles[x, y] = Wall();
     }
 
-    // Velg en romform og grav ut gulvet. Kalles etter at dørene er satt.
     public void Build(Random rng, bool isStart)
     {
         if (isStart) { CarveRect(1, 1, Width - 2, Height - 2); return; }
 
-        switch (rng.Next(4))
+        switch (rng.Next(5))
         {
             case 0: // full sal
                 CarveRect(1, 1, Width - 2, Height - 2);
@@ -88,12 +86,20 @@ internal class Room
                             SetFloor(x, y);
                 break;
             }
+
+            case 4: // søylesal
+            {
+                CarveRect(1, 1, Width - 2, Height - 2);
+                for (int x = 3; x < Width - 2; x += 4)
+                    for (int y = 2; y < Height - 2; y += 3)
+                        _tiles[x, y] = Pillar();
+                break;
+            }
         }
     }
 
     public void Decorate(Random rng, bool isStart)
     {
-        // grus (gangbar) på noen gulvruter
         int rubble = rng.Next(0, 6);
         for (int n = 0; n < rubble; n++)
         {
@@ -104,9 +110,8 @@ internal class Room
 
         if (isStart) return;
 
-        // noen søyler (blokkerende) på gulvruter, ikke nær midten
         int cx = Width / 2, cy = Height / 2;
-        int pillars = rng.Next(0, 5);
+        int pillars = rng.Next(0, 4);
         for (int n = 0; n < pillars; n++)
         {
             int x = rng.Next(2, Width - 2);
@@ -114,9 +119,70 @@ internal class Room
             if (_tiles[x, y].IsWalkable && (Math.Abs(x - cx) > 2 || Math.Abs(y - cy) > 2))
                 _tiles[x, y] = Pillar();
         }
+
+        PlaceFeatures(rng);
     }
 
-    // Garanter at midten og hver dør henger sammen (kjøres sist).
+    // Plasser 1-3 flerfelts-objekter på ledige gulvflater.
+    private void PlaceFeatures(Random rng)
+    {
+        int n = rng.Next(1, 4);
+        for (int k = 0; k < n; k++)
+        {
+            switch (rng.Next(4))
+            {
+                case 0: PlaceCluster(rng, 3, 2, Water); break;
+                case 1: PlaceCluster(rng, 2, 2, Crate); break;
+                case 2: PlaceCluster(rng, 3, 2, Crack); break;
+                case 3: PlaceStatue(rng); break;
+            }
+        }
+    }
+
+    private bool RegionFloor(int x0, int y0, int w, int h)
+    {
+        int cx = Width / 2, cy = Height / 2;
+        for (int x = x0; x < x0 + w; x++)
+            for (int y = y0; y < y0 + h; y++)
+            {
+                if (x < 1 || y < 1 || x >= Width - 1 || y >= Height - 1) return false;
+                if (!_tiles[x, y].IsWalkable) return false;
+                if (Math.Abs(x - cx) <= 2 && Math.Abs(y - cy) <= 2) return false;
+            }
+        return true;
+    }
+
+    private void PlaceCluster(Random rng, int w, int h, Func<Tile> make)
+    {
+        for (int t = 0; t < 15; t++)
+        {
+            int x0 = rng.Next(1, Math.Max(2, Width - 1 - w));
+            int y0 = rng.Next(1, Math.Max(2, Height - 1 - h));
+            if (RegionFloor(x0, y0, w, h))
+            {
+                for (int x = x0; x < x0 + w; x++)
+                    for (int y = y0; y < y0 + h; y++)
+                        _tiles[x, y] = make();
+                return;
+            }
+        }
+    }
+
+    private void PlaceStatue(Random rng)
+    {
+        for (int t = 0; t < 15; t++)
+        {
+            int x = rng.Next(2, Width - 2);
+            int y = rng.Next(3, Height - 2);
+            if (RegionFloor(x, y - 1, 1, 2))
+            {
+                _tiles[x, y] = StatueBottom();
+                _tiles[x, y - 1] = StatueTop();
+                return;
+            }
+        }
+    }
+
     public void CarveDoorCorridors()
     {
         int cx = Width / 2, cy = Height / 2;
@@ -230,14 +296,19 @@ internal class Room
             for (int y = 0; y < Height; y++)
             {
                 Tile t = _tiles[x, y];
-                if (t.IsWalkable)
-                    surface.SetGlyph(x, y, t.Glyph, t.Foreground, t.Background);
-                else if (t.Glyph == Glyph.Pillar)
-                    surface.SetGlyph(x, y, Glyph.Pillar, Color.White, Color.Black);
-                else if (AdjacentToWalkable(x, y))
-                    surface.SetGlyph(x, y, _wallGlyph, Color.White, Color.Black);
+                if (!t.IsWalkable && t.Glyph == _wallGlyph)
+                {
+                    // fjell/vegg: vegg-glyf der det grenser til gulv, ellers svart
+                    if (AdjacentToWalkable(x, y))
+                        surface.SetGlyph(x, y, _wallGlyph, Color.White, Color.Black);
+                    else
+                        surface.SetGlyph(x, y, Glyph.Void, Color.White, Color.Black);
+                }
                 else
-                    surface.SetGlyph(x, y, Glyph.Void, Color.White, Color.Black);
+                {
+                    // gulv, grus, søyler og flerfelts-objekter tegner sin egen glyf
+                    surface.SetGlyph(x, y, t.Glyph, t.Foreground, t.Background);
+                }
             }
 
         if (Stairs.HasValue)
@@ -276,4 +347,19 @@ internal class Room
 
     private static Tile Rubble() => new()
     { Glyph = Glyph.Rubble, Foreground = Color.White, Background = Color.Black, IsWalkable = true };
+
+    private static Tile Water() => new()
+    { Glyph = Glyph.Water, Foreground = Color.White, Background = Color.Black, IsWalkable = false };
+
+    private static Tile Crate() => new()
+    { Glyph = Glyph.Crate, Foreground = Color.White, Background = Color.Black, IsWalkable = false };
+
+    private static Tile Crack() => new()
+    { Glyph = Glyph.Crack, Foreground = Color.White, Background = Color.Black, IsWalkable = false };
+
+    private static Tile StatueTop() => new()
+    { Glyph = Glyph.StatueTop, Foreground = Color.White, Background = Color.Black, IsWalkable = false };
+
+    private static Tile StatueBottom() => new()
+    { Glyph = Glyph.StatueBottom, Foreground = Color.White, Background = Color.Black, IsWalkable = false };
 }

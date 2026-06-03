@@ -16,4 +16,6 @@ internal static class Glyph
 
     public const int Rat = 24, Goblin = 25, Skeleton = 26, Slime = 27,
                      Cultist = 28, Seer = 29;
+
+    public const int Water = 30, Crate = 31, StatueTop = 32, StatueBottom = 33, Crack = 34;
 }

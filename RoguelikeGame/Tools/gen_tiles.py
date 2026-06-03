@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 
 TILE = 32
 COLS = 8
-ROWS = 4
+ROWS = 5
 OUTLINE = (22, 18, 30, 255)
 
 sheet = Image.new("RGBA", (COLS * TILE, ROWS * TILE), (0, 0, 0, 0))
@@ -441,6 +441,64 @@ def seer(i):
 
 cultist(28)
 seer(29)
+
+# ---- flerfelts-objekter ----
+# 30 water - vanndam (fyller hele flisa, flere ved siden av hverandre = dam)
+def water(i):
+    rect(i, 0, 0, 31, 31, (38, 66, 116, 255))
+    rect(i, 0, 0, 31, 2, (30, 54, 96, 255))
+    rect(i, 4, 8, 13, 9, (92, 138, 198, 255))
+    rect(i, 17, 13, 26, 14, (92, 138, 198, 255))
+    rect(i, 8, 21, 20, 22, (78, 120, 180, 255))
+    rect(i, 20, 25, 27, 26, (92, 138, 198, 255))
+
+# 31 crate - trekasse
+def crate(i):
+    rect(i, 4, 4, 27, 27, (120, 84, 48, 255))
+    rect(i, 4, 4, 27, 6, (150, 110, 66, 255))
+    rect(i, 4, 4, 6, 27, (150, 110, 66, 255))
+    rect(i, 4, 4, 27, 4, darken((120, 84, 48, 255), 30))
+    rect(i, 4, 27, 27, 27, darken((120, 84, 48, 255), 30))
+    rect(i, 4, 15, 27, 16, (92, 64, 36, 255))     # midtplanke
+    d.line([org(i)[0] + 5, org(i)[1] + 5, org(i)[0] + 26, org(i)[1] + 26], fill=(92, 64, 36, 255), width=2)
+    outline_tile(i)
+
+# 32 statue top / 33 statue bottom - 2 fliser hoy stenstatue
+def statue_top(i):
+    stone = (150, 150, 160, 255)
+    ellipse(i, 11, 8, 20, 18, stone)               # hode
+    rect(i, 9, 18, 22, 31, stone)                  # skuldre/overkropp
+    rect(i, 13, 12, 15, 14, (60, 60, 70, 255))     # oyne
+    rect(i, 17, 12, 19, 14, (60, 60, 70, 255))
+    rect(i, 9, 18, 22, 19, lighten(stone, 25))
+    outline_tile(i)
+
+def statue_bottom(i):
+    stone = (150, 150, 160, 255)
+    rect(i, 9, 0, 22, 20, stone)                   # kropp
+    rect(i, 6, 20, 25, 27, darken(stone, 18))      # sokkel
+    rect(i, 4, 27, 27, 31, darken(stone, 30))
+    rect(i, 6, 20, 25, 21, lighten(stone, 20))
+    outline_tile(i)
+
+# 34 crack - sprekk / avgrunn i gulvet
+def crack(i):
+    rect(i, 0, 0, 31, 31, (40, 40, 50, 255))       # mork stein rundt
+    pts = [(16, 2), (12, 9), (19, 15), (11, 22), (17, 30)]
+    for n in range(len(pts) - 1):
+        d.line([org(i)[0] + pts[n][0], org(i)[1] + pts[n][1],
+                org(i)[0] + pts[n + 1][0], org(i)[1] + pts[n + 1][1]],
+               fill=(8, 8, 12, 255), width=5)
+    for n in range(len(pts) - 1):
+        d.line([org(i)[0] + pts[n][0], org(i)[1] + pts[n][1],
+                org(i)[0] + pts[n + 1][0], org(i)[1] + pts[n + 1][1]],
+               fill=(70, 70, 84, 255), width=1)
+
+water(30)
+crate(31)
+statue_top(32)
+statue_bottom(33)
+crack(34)
 
 sheet.save("/home/claude/tiles.png")
 print("tiles.png:", sheet.size)
