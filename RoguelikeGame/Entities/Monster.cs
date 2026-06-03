@@ -109,6 +109,7 @@ internal class Monster
         double step = Speed * dt;
         double ux = dist > 0.001 ? dx / dist : 0;
         double uy = dist > 0.001 ? dy / dist : 0;
+        if (room.IsWater((int)Math.Round(Fx), (int)Math.Round(Fy))) step *= 0.5;
 
         if (CanShoot && KeepsDistance)
         {

@@ -146,7 +146,7 @@ internal class Room
             for (int y = y0; y < y0 + h; y++)
             {
                 if (x < 1 || y < 1 || x >= Width - 1 || y >= Height - 1) return false;
-                if (!_tiles[x, y].IsWalkable) return false;
+                if (_tiles[x, y].Glyph != _floorGlyph) return false;
                 if (Math.Abs(x - cx) <= 2 && Math.Abs(y - cy) <= 2) return false;
             }
         return true;
@@ -279,6 +279,8 @@ internal class Room
         return _tiles[x, y].IsWalkable;
     }
 
+    public bool IsWater(int x, int y) => InBounds(x, y) && _tiles[x, y].Glyph == Glyph.Water;
+
     private bool InBounds(int x, int y) => x >= 0 && y >= 0 && x < Width && y < Height;
 
     private bool AdjacentToWalkable(int x, int y)
@@ -349,7 +351,7 @@ internal class Room
     { Glyph = Glyph.Rubble, Foreground = Color.White, Background = Color.Black, IsWalkable = true };
 
     private static Tile Water() => new()
-    { Glyph = Glyph.Water, Foreground = Color.White, Background = Color.Black, IsWalkable = false };
+    { Glyph = Glyph.Water, Foreground = Color.White, Background = Color.Black, IsWalkable = true };
 
     private static Tile Crate() => new()
     { Glyph = Glyph.Crate, Foreground = Color.White, Background = Color.Black, IsWalkable = false };

@@ -199,9 +199,10 @@ internal class RootScreen : ScreenSurface
         if (vx != 0 || vy != 0)
         {
             if (vx != 0 && vy != 0) { vx *= 0.70710678; vy *= 0.70710678; }
-            _playerVx = vx * _moveSpeed;
-            _playerVy = vy * _moveSpeed;
-            MovePlayer(vx * _moveSpeed * dt, vy * _moveSpeed * dt);
+            double mul = _dungeon.CurrentRoom.IsWater((int)Math.Round(_px), (int)Math.Round(_py)) ? 0.5 : 1.0;
+            _playerVx = vx * _moveSpeed * mul;
+            _playerVy = vy * _moveSpeed * mul;
+            MovePlayer(vx * _moveSpeed * mul * dt, vy * _moveSpeed * mul * dt);
             UpdatePlayerSurface();
         }
         else { _playerVx = 0; _playerVy = 0; }
