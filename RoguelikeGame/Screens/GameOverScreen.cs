@@ -8,7 +8,7 @@ internal class GameOverScreen : ScreenSurface
 {
     private readonly string _heroName;
 
-    public GameOverScreen(string heroName) : base(80, 25)
+    public GameOverScreen(string heroName) : base(104, 34)
     {
         _heroName = heroName;
         Draw();

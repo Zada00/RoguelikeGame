@@ -42,69 +42,119 @@ internal class Room
             _               => (Glyph.Floor,      Glyph.Wall,      new Color(44, 44, 54)),
         };
 
+        // alt starter som vegg/fjell; Build() graver ut gulvet
         _tiles = new Tile[width, height];
         for (int x = 0; x < Width; x++)
             for (int y = 0; y < Height; y++)
+                _tiles[x, y] = Wall();
+    }
+
+    // Velg en romform og grav ut gulvet. Kalles etter at dørene er satt.
+    public void Build(Random rng, bool isStart)
+    {
+        if (isStart) { CarveRect(1, 1, Width - 2, Height - 2); return; }
+
+        switch (rng.Next(4))
+        {
+            case 0: // full sal
+                CarveRect(1, 1, Width - 2, Height - 2);
+                break;
+
+            case 1: // mindre rom i varierende størrelse
             {
-                bool isEdge = x == 0 || y == 0 || x == Width - 1 || y == Height - 1;
-                _tiles[x, y] = isEdge ? Wall() : Floor();
+                int rw = rng.Next(9, Width - 3);
+                int rh = rng.Next(6, Height - 3);
+                int rx = 1 + rng.Next(0, Width - 2 - rw);
+                int ry = 1 + rng.Next(0, Height - 2 - rh);
+                CarveRect(rx, ry, rx + rw - 1, ry + rh - 1);
+                break;
             }
+
+            case 2: // kors / pluss
+            {
+                int cx = Width / 2, cy = Height / 2;
+                CarveRect(1, cy - 2, Width - 2, cy + 1);
+                CarveRect(cx - 2, 1, cx + 1, Height - 2);
+                break;
+            }
+
+            case 3: // diamant
+            {
+                int cx = Width / 2, cy = Height / 2;
+                double a = (Width - 2) * 0.5, b = (Height - 2) * 0.5;
+                for (int x = 1; x < Width - 1; x++)
+                    for (int y = 1; y < Height - 1; y++)
+                        if (Math.Abs(x - cx) / a + Math.Abs(y - cy) / b <= 1.0)
+                            SetFloor(x, y);
+                break;
+            }
+        }
     }
 
     public void Decorate(Random rng, bool isStart)
     {
+        // grus (gangbar) på noen gulvruter
         int rubble = rng.Next(0, 6);
         for (int n = 0; n < rubble; n++)
         {
             int x = rng.Next(1, Width - 1);
             int y = rng.Next(1, Height - 1);
-            if (_tiles[x, y].IsWalkable)
-                _tiles[x, y] = Rubble();
+            if (_tiles[x, y].IsWalkable) _tiles[x, y] = Rubble();
         }
 
         if (isStart) return;
 
-        switch (rng.Next(6))
+        // noen søyler (blokkerende) på gulvruter, ikke nær midten
+        int cx = Width / 2, cy = Height / 2;
+        int pillars = rng.Next(0, 5);
+        for (int n = 0; n < pillars; n++)
         {
-            case 1:
-                _tiles[3, 3] = Pillar();
-                _tiles[Width - 4, 3] = Pillar();
-                _tiles[3, Height - 4] = Pillar();
-                _tiles[Width - 4, Height - 4] = Pillar();
-                break;
-            case 2:
-                for (int y = 3; y <= Height - 4; y += 2)
-                {
-                    _tiles[6, y] = Pillar();
-                    _tiles[Width - 7, y] = Pillar();
-                }
-                break;
-            case 3:
-                _tiles[Width / 2 - 3, Height / 2 - 1] = Pillar();
-                _tiles[Width / 2 + 3, Height / 2 - 1] = Pillar();
-                _tiles[Width / 2 - 3, Height / 2 + 1] = Pillar();
-                _tiles[Width / 2 + 3, Height / 2 + 1] = Pillar();
-                break;
-            case 4:
-            case 5:
-                int count = rng.Next(2, 5);
-                for (int n = 0; n < count; n++)
-                {
-                    int x = rng.Next(3, Width - 3);
-                    int y = rng.Next(3, Height - 3);
-                    _tiles[x, y] = Pillar();
-                }
-                break;
+            int x = rng.Next(2, Width - 2);
+            int y = rng.Next(2, Height - 2);
+            if (_tiles[x, y].IsWalkable && (Math.Abs(x - cx) > 2 || Math.Abs(y - cy) > 2))
+                _tiles[x, y] = Pillar();
         }
+    }
 
-        _tiles[Width / 2, Height / 2] = Floor();
+    // Garanter at midten og hver dør henger sammen (kjøres sist).
+    public void CarveDoorCorridors()
+    {
+        int cx = Width / 2, cy = Height / 2;
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dy = -1; dy <= 1; dy++)
+                SetFloor(cx + dx, cy + dy);
+
+        if (HasDoorNorth) Corridor(cx, cy, Width / 2, 1);
+        if (HasDoorSouth) Corridor(cx, cy, Width / 2, Height - 2);
+        if (HasDoorWest)  Corridor(cx, cy, 1, Height / 2);
+        if (HasDoorEast)  Corridor(cx, cy, Width - 2, Height / 2);
+    }
+
+    private void Corridor(int ax, int ay, int bx, int by)
+    {
+        for (int x = Math.Min(ax, bx); x <= Math.Max(ax, bx); x++) SetFloor(x, ay);
+        for (int y = Math.Min(ay, by); y <= Math.Max(ay, by); y++) SetFloor(bx, y);
+    }
+
+    private void CarveRect(int x0, int y0, int x1, int y1)
+    {
+        x0 = Math.Max(1, x0); y0 = Math.Max(1, y0);
+        x1 = Math.Min(Width - 2, x1); y1 = Math.Min(Height - 2, y1);
+        for (int x = x0; x <= x1; x++)
+            for (int y = y0; y <= y1; y++)
+                SetFloor(x, y);
+    }
+
+    private void SetFloor(int x, int y)
+    {
+        if (x < 1 || y < 1 || x >= Width - 1 || y >= Height - 1) return;
+        _tiles[x, y] = Floor();
     }
 
     public void SpawnMonsters(Random rng, bool isStart, int depth)
     {
         if (isStart) return;
 
-        // Grunnpool: nærkjempere. Fra etasje 2 dukker også skyttere opp.
         var makers = new List<Func<int, int, int, Monster>>
         { Monster.Rat, Monster.Goblin, Monster.Skeleton, Monster.Slime };
         if (depth >= 2)
@@ -118,12 +168,12 @@ internal class Room
 
         for (int n = 0; n < count; n++)
         {
-            for (int attempt = 0; attempt < 20; attempt++)
+            for (int attempt = 0; attempt < 30; attempt++)
             {
                 int x = rng.Next(1, Width - 1);
                 int y = rng.Next(1, Height - 1);
                 bool center = x == Width / 2 && y == Height / 2;
-                if (IsWalkable(x, y) && !center && MonsterAt(x, y) == null)
+                if (_tiles[x, y].IsWalkable && !center && MonsterAt(x, y) == null)
                 {
                     Monsters.Add(makers[rng.Next(makers.Count)](x, y, depth));
                     break;
@@ -163,13 +213,31 @@ internal class Room
         return _tiles[x, y].IsWalkable;
     }
 
+    private bool InBounds(int x, int y) => x >= 0 && y >= 0 && x < Width && y < Height;
+
+    private bool AdjacentToWalkable(int x, int y)
+    {
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dy = -1; dy <= 1; dy++)
+                if (InBounds(x + dx, y + dy) && IsWalkable(x + dx, y + dy))
+                    return true;
+        return false;
+    }
+
     public void Render(ICellSurface surface)
     {
         for (int x = 0; x < Width; x++)
             for (int y = 0; y < Height; y++)
             {
                 Tile t = _tiles[x, y];
-                surface.SetGlyph(x, y, t.Glyph, t.Foreground, t.Background);
+                if (t.IsWalkable)
+                    surface.SetGlyph(x, y, t.Glyph, t.Foreground, t.Background);
+                else if (t.Glyph == Glyph.Pillar)
+                    surface.SetGlyph(x, y, Glyph.Pillar, Color.White, Color.Black);
+                else if (AdjacentToWalkable(x, y))
+                    surface.SetGlyph(x, y, _wallGlyph, Color.White, Color.Black);
+                else
+                    surface.SetGlyph(x, y, Glyph.Void, Color.White, Color.Black);
             }
 
         if (Stairs.HasValue)

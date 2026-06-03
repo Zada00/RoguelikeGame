@@ -128,15 +128,28 @@ internal class RootScreen : ScreenSurface
             else if (keyboard.IsKeyPressed(Keys.D2)) pick = 1;
             else if (keyboard.IsKeyPressed(Keys.D3)) pick = 2;
 
+            if (keyboard.IsKeyPressed(Keys.U) || keyboard.IsKeyPressed(Keys.Escape))
+            {
+                _choosingReward = false;
+                _rewardPanel.IsVisible = false;
+                return true;
+            }
+
             if (pick >= 0 && pick < _rewardOptions.Count)
             {
                 _rewardOptions[pick].Apply();
                 _pendingUpgrades--;
-                _choosingReward = false;
-                _rewardPanel.IsVisible = false;
                 if (_player.Hp > MaxHp) _player.Hp = MaxHp;
                 UpdateNotify();
                 DrawStatus();
+
+                if (_pendingUpgrades > 0)
+                    OpenUpgradeChoice();          
+                else
+                {
+                    _choosingReward = false;       
+                    _rewardPanel.IsVisible = false;
+                }
             }
             return true;
         }

@@ -26,33 +26,40 @@ internal class Dungeon
         Depth = depth;
         _rooms = new Room[gridWidth, gridHeight];
 
+        // 1) lag tomme rom (bare vegg)
+        for (int gx = 0; gx < GridWidth; gx++)
+            for (int gy = 0; gy < GridHeight; gy++)
+                _rooms[gx, gy] = new Room(RoomWidth, RoomHeight, (RoomTheme)_rng.Next(4));
+
+        // 2) koble dem sammen (setter dører)
+        GenerateMaze();
+
+        // 3) bygg layout + dekor + monstre (nå som dørene er kjent)
         for (int gx = 0; gx < GridWidth; gx++)
             for (int gy = 0; gy < GridHeight; gy++)
             {
                 bool isStart = gx == 0 && gy == 0;
-                var theme = (RoomTheme)_rng.Next(4);
-                var room = new Room(RoomWidth, RoomHeight, theme);
+                var room = _rooms[gx, gy];
+                room.Build(_rng, isStart);
                 room.Decorate(_rng, isStart);
+                room.CarveDoorCorridors();
                 room.SpawnMonsters(_rng, isStart, depth);
-                _rooms[gx, gy] = room;
             }
 
-        GenerateMaze();
         PlaceStairs();
         CurrentRoom.IsVisited = true;
     }
 
-    // Plasser trappen ned i ett tilfeldig rom (ikke startrommet).
     private void PlaceStairs()
     {
-        for (int attempt = 0; attempt < 100; attempt++)
+        for (int attempt = 0; attempt < 200; attempt++)
         {
             int gx = _rng.Next(GridWidth);
             int gy = _rng.Next(GridHeight);
             if (gx == 0 && gy == 0) continue;
 
             var room = _rooms[gx, gy];
-            for (int t = 0; t < 40; t++)
+            for (int t = 0; t < 60; t++)
             {
                 int x = _rng.Next(1, RoomWidth - 1);
                 int y = _rng.Next(1, RoomHeight - 1);
@@ -86,17 +93,11 @@ internal class Dungeon
             if (cx > 0              && !visited[cx - 1, cy]) neighbors.Add((cx - 1, cy, Direction.West,  Direction.East));
             if (cx < GridWidth - 1  && !visited[cx + 1, cy]) neighbors.Add((cx + 1, cy, Direction.East,  Direction.West));
 
-            if (neighbors.Count == 0)
-            {
-                stack.Pop();
-                continue;
-            }
+            if (neighbors.Count == 0) { stack.Pop(); continue; }
 
             var (nx, ny, from, to) = neighbors[rng.Next(neighbors.Count)];
-
             SetDoor(_rooms[cx, cy], from);
             SetDoor(_rooms[nx, ny], to);
-
             visited[nx, ny] = true;
             stack.Push((nx, ny));
         }
