@@ -162,7 +162,8 @@ internal class RootScreen : ScreenSurface
 
         if (keyboard.IsKeyPressed(Keys.M))
         {
-            var mapScreen = new MapScreen(_dungeon);
+            var mapScreen = new MapScreen(_dungeon, _player.Character.TileIndex) { UsePixelPositioning = true };
+            mapScreen.Position = new Point(-Position.X, -Position.Y);
             Children.Add(mapScreen);
             mapScreen.IsFocused = true;
             return true;
