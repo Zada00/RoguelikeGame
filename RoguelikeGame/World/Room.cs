@@ -25,6 +25,8 @@ internal class Room
     public bool HasDoorEast { get; set; }
     public bool HasDoorWest { get; set; }
     public bool IsVisited { get; set; }
+    public bool HadMonsters { get; set; }
+    public bool RewardGranted { get; set; }
 
     public Room(int width, int height, RoomTheme theme)
     {
@@ -128,6 +130,8 @@ internal class Room
                 }
             }
         }
+
+        HadMonsters = Monsters.Count > 0;
     }
 
     public Monster? MonsterAt(int x, int y) => Monsters.FirstOrDefault(m => m.X == x && m.Y == y);

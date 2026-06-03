@@ -9,7 +9,7 @@ internal class CharacterSelectScreen : ScreenSurface
     private int _selected;
     private const int PanelX = 42;
 
-    public CharacterSelectScreen() : base(80, 25)
+    public CharacterSelectScreen() : base(100, 32)
     {
         Draw();
     }

@@ -5,7 +5,7 @@ using RoguelikeGame;
 Settings.WindowTitle = "Min Roguelike";
 
 Builder gameStartup = new Builder()
-    .SetScreenSize(80, 25)
+    .SetScreenSize(104, 34)
     .SetStartingScreen<CharacterSelectScreen>()
     .IsStartingScreenFocused(true)
     .ConfigureFonts(true)
