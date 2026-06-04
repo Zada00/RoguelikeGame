@@ -13,7 +13,7 @@ internal class MapScreen : ScreenSurface
 
     private static readonly Color Backdrop = new(12, 12, 18);
     private static readonly Color DoorTint = new(230, 180, 80);
-    private static readonly Color ClearedDot = new(110, 230, 130);
+    private static readonly Color ClearedTint = new(110, 230, 140);
     private static readonly Color Unseen = new(24, 24, 32);
 
     public MapScreen(Dungeon dungeon, int heroTile) : base(104, 34)
@@ -29,7 +29,7 @@ internal class MapScreen : ScreenSurface
         string depth = $"- Depth {_dungeon.Depth} -";
         Surface.Print((Width - depth.Length) / 2, 3, depth, new Color(150, 200, 150));
 
-        string legend = "your hero = you      > = stairs down      green dot = cleared      shaded = unexplored";
+        string legend = "your hero = you      > = stairs down      green = cleared      shaded = unexplored";
         Surface.Print((Width - legend.Length) / 2, Height - 3, legend, new Color(150, 150, 150));
         Surface.Print((Width - 17) / 2, Height - 2, "M or Esc to close", new Color(110, 110, 110));
 
@@ -75,23 +75,22 @@ internal class MapScreen : ScreenSurface
         bool cleared = room.HadMonsters && room.Monsters.Count == 0;
         var (floorGlyph, wallGlyph) = ThemeGlyphs(room.Theme);
 
-        Color cellBg = cleared ? new Color(20, 70, 35) : Color.Black;
+        // ryddet rom: tint selve flisene grønne (forgrunn), siden flisene dekker bakgrunnen
+        Color tint = cleared ? ClearedTint : Color.White;
 
         for (int dx = 0; dx < CellSize; dx++)
             for (int dy = 0; dy < CellSize; dy++)
             {
                 bool edge = dx == 0 || dy == 0 || dx == CellSize - 1 || dy == CellSize - 1;
-                s.SetGlyph(bx + dx, by + dy, edge ? wallGlyph : floorGlyph, Color.White, cellBg);
+                s.SetGlyph(bx + dx, by + dy, edge ? wallGlyph : floorGlyph, tint, Color.Black);
             }
 
         int mx = bx + CellSize / 2;
         int my = by + CellSize / 2;
 
-        // kun nord/vest -> én dør per forbindelse
         if (room.HasDoorNorth) s.SetGlyph(mx, by, Glyph.Door, DoorTint, Color.Black);
         if (room.HasDoorWest) s.SetGlyph(bx, my, Glyph.Door, DoorTint, Color.Black);
 
-        // markører: deg (karakter-sprite) > trapp
         if (isCurrent)
         {
             s.SetGlyph(mx, my, _heroTile, Color.White, Color.Black);

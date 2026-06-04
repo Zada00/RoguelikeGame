@@ -229,8 +229,13 @@ internal class Room
             makers.Add(Monster.Seer);
         }
 
-        int count = rng.Next(1, 4) + (depth - 1);
-        if (count > 7) count = 7;
+        int floorCount = 0;
+        for (int fx = 1; fx < Width - 1; fx++)
+            for (int fy = 1; fy < Height - 1; fy++)
+                if (_tiles[fx, fy].IsWalkable) floorCount++;
+
+        int count = floorCount / 12 + (depth - 1);
+        count = Math.Clamp(count, 1, 10);
 
         for (int n = 0; n < count; n++)
         {
