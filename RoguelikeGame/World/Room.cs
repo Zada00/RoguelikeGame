@@ -152,6 +152,9 @@ internal class Room
         return true;
     }
 
+    public bool IsWater(int x, int y) =>
+        x >= 0 && y >= 0 && x < Width && y < Height && _tiles[x, y].Glyph == Glyph.Water;
+
     private void PlaceCluster(Random rng, int w, int h, Func<Tile> make)
     {
         for (int t = 0; t < 15; t++)
@@ -217,7 +220,7 @@ internal class Room
         _tiles[x, y] = Floor();
     }
 
-    public void SpawnMonsters(Random rng, bool isStart, int depth)
+    public void SpawnMonsters(Random rng, bool isStart, int depth, int densityDiv, int cap, double statMul)
     {
         if (isStart) return;
 
@@ -229,13 +232,14 @@ internal class Room
             makers.Add(Monster.Seer);
         }
 
+        // antall skalerer med romstørrelse (gangbare gulvruter)
         int floorCount = 0;
         for (int fx = 1; fx < Width - 1; fx++)
             for (int fy = 1; fy < Height - 1; fy++)
                 if (_tiles[fx, fy].IsWalkable) floorCount++;
 
-        int count = floorCount / 12 + (depth - 1);
-        count = Math.Clamp(count, 1, 10);
+        int count = floorCount / densityDiv + (depth - 1);
+        count = Math.Clamp(count, 1, cap);
 
         for (int n = 0; n < count; n++)
         {
@@ -246,7 +250,9 @@ internal class Room
                 bool center = x == Width / 2 && y == Height / 2;
                 if (_tiles[x, y].IsWalkable && !center && MonsterAt(x, y) == null)
                 {
-                    Monsters.Add(makers[rng.Next(makers.Count)](x, y, depth));
+                    var m = makers[rng.Next(makers.Count)](x, y, depth);
+                    m.Scale(statMul);
+                    Monsters.Add(m);
                     break;
                 }
             }
@@ -283,8 +289,6 @@ internal class Room
         if (GetDoorAt(x, y) != null) return true;
         return _tiles[x, y].IsWalkable;
     }
-
-    public bool IsWater(int x, int y) => InBounds(x, y) && _tiles[x, y].Glyph == Glyph.Water;
 
     private bool InBounds(int x, int y) => x >= 0 && y >= 0 && x < Width && y < Height;
 

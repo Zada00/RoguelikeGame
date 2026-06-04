@@ -99,9 +99,9 @@ internal class CharacterSelectScreen : ScreenSurface
         }
         else if (keyboard.IsKeyPressed(Keys.Enter))
         {
-            var game = new RootScreen(Character.All[_selected]);
-            Game.Instance.Screen = game;
-            game.IsFocused = true;
+            var next = new DifficultySelectScreen(Character.All[_selected]);
+            Game.Instance.Screen = next;
+            next.IsFocused = true;
         }
         return true;
     }

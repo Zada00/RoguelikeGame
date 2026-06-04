@@ -12,18 +12,20 @@ internal class Dungeon
 
     private readonly Room[,] _rooms;
     private readonly Random _rng = new();
+    private readonly DiffSettings _diff;
 
     public int CurrentGridX { get; private set; }
     public int CurrentGridY { get; private set; }
     public Room CurrentRoom => _rooms[CurrentGridX, CurrentGridY];
 
-    public Dungeon(int gridWidth, int gridHeight, int roomWidth, int roomHeight, int depth)
+    public Dungeon(int gridWidth, int gridHeight, int roomWidth, int roomHeight, int depth, Difficulty difficulty)
     {
         GridWidth = gridWidth;
         GridHeight = gridHeight;
         RoomWidth = roomWidth;
         RoomHeight = roomHeight;
         Depth = depth;
+        _diff = DifficultySettings.Get(difficulty);
         _rooms = new Room[gridWidth, gridHeight];
 
         // 1) lag tomme rom (bare vegg)
@@ -43,7 +45,7 @@ internal class Dungeon
                 room.Build(_rng, isStart);
                 room.Decorate(_rng, isStart);
                 room.CarveDoorCorridors();
-                room.SpawnMonsters(_rng, isStart, depth);
+                room.SpawnMonsters(_rng, isStart, depth, _diff.DensityDiv, _diff.Cap, _diff.StatMul);
             }
 
         PlaceStairs();

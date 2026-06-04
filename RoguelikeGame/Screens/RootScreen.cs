@@ -24,6 +24,7 @@ internal class RootScreen : ScreenSurface
     private Dungeon _dungeon;
     private readonly Player _player;
     private readonly Random _rng = new();
+    private readonly Difficulty _difficulty;
 
     private double _px, _py;
     private double _playerVx, _playerVy;
@@ -64,8 +65,10 @@ internal class RootScreen : ScreenSurface
     private double FireIntervalEff => Math.Max(0.05, _player.Character.FireInterval - 0.03 * _attackSpeedLevels);
     private double ShotLifeEff => _player.Character.ShotLife + 0.15 * _bonusRangeLevels;
 
-    public RootScreen(Character character) : base(MapWidth, MapHeight)
+    public RootScreen(Character character, Difficulty difficulty) : base(MapWidth, MapHeight)
     {
+        _difficulty = difficulty;
+
         Font = GameFonts.Tiles;
         FontSize = GameFonts.Tiles.GetFontSize(IFont.Sizes.One);
 
@@ -76,13 +79,12 @@ internal class RootScreen : ScreenSurface
         _status.Position = new Point(0, MapHeight * GameFonts.Tiles.GlyphHeight);
         Children.Add(_status);
 
-        // varsel oppe til høyre (standard font)
         _notify = new ScreenSurface(22, 1) { UsePixelPositioning = true };
-        _notify.Position = new Point(640 - 22 * 8 - 4, 4);
+        _notify.Position = new Point(MapWidth * 32 - 22 * 8 - 4, 4);
         _notify.IsVisible = false;
         Children.Add(_notify);
 
-        _dungeon = new Dungeon(5, 5, MapWidth, MapHeight, _depth);
+        _dungeon = new Dungeon(5, 5, MapWidth, MapHeight, _depth, _difficulty);
         _player = new Player(character, MapWidth / 2, MapHeight / 2);
         _px = _player.X; _py = _player.Y;
         _mana = character.Mana;
@@ -106,6 +108,19 @@ internal class RootScreen : ScreenSurface
         UpdatePlayerSurface();
     }
 
+    // Sentrer hele kartet i vinduet (samme tall som SetWindowSizeInCells i Program.cs).
+    private Point CenterOffset()
+    {
+        int tile = GameFonts.Tiles.GlyphWidth;
+        int mapPxW = MapWidth * tile;
+        int mapPxH = (MapHeight + 1) * tile;
+        int winPxW = 104 * 8;
+        int winPxH = 34 * 16;
+        int ox = Math.Max(0, (winPxW - mapPxW) / 2);
+        int oy = Math.Max(0, (winPxH - mapPxH) / 2);
+        return new Point(ox, oy);
+    }
+
     private void ApplyExploreAbility()
     {
         switch (_player.Character.Ability)
@@ -123,17 +138,17 @@ internal class RootScreen : ScreenSurface
 
         if (_choosingReward)
         {
-            int pick = -1;
-            if (keyboard.IsKeyPressed(Keys.D1)) pick = 0;
-            else if (keyboard.IsKeyPressed(Keys.D2)) pick = 1;
-            else if (keyboard.IsKeyPressed(Keys.D3)) pick = 2;
-
             if (keyboard.IsKeyPressed(Keys.U) || keyboard.IsKeyPressed(Keys.Escape))
             {
                 _choosingReward = false;
                 _rewardPanel.IsVisible = false;
                 return true;
             }
+
+            int pick = -1;
+            if (keyboard.IsKeyPressed(Keys.D1)) pick = 0;
+            else if (keyboard.IsKeyPressed(Keys.D2)) pick = 1;
+            else if (keyboard.IsKeyPressed(Keys.D3)) pick = 2;
 
             if (pick >= 0 && pick < _rewardOptions.Count)
             {
@@ -144,10 +159,10 @@ internal class RootScreen : ScreenSurface
                 DrawStatus();
 
                 if (_pendingUpgrades > 0)
-                    OpenUpgradeChoice();          
+                    OpenUpgradeChoice();          // rull nye valg, bli i vinduet
                 else
                 {
-                    _choosingReward = false;       
+                    _choosingReward = false;
                     _rewardPanel.IsVisible = false;
                 }
             }
@@ -230,12 +245,12 @@ internal class RootScreen : ScreenSurface
         if (_fade == FadeState.None && !_dead)
             UpdateMonsters(dt);
 
-        // ---- rom ryddet? gjør en oppgradering tilgjengelig (ingen pause) ----
+        // ---- rom ryddet? gjør oppgradering(er) tilgjengelig (ingen pause) ----
         var room = _dungeon.CurrentRoom;
         if (room.HadMonsters && !room.RewardGranted && room.Monsters.Count == 0)
         {
             room.RewardGranted = true;
-            _pendingUpgrades++;
+            _pendingUpgrades += 1 + DifficultySettings.Get(_difficulty).RewardBonus;
             UpdateNotify();
         }
 
@@ -302,7 +317,7 @@ internal class RootScreen : ScreenSurface
         s.Print(2, 1, "CHOOSE AN UPGRADE", new Color(150, 220, 150));
         for (int i = 0; i < _rewardOptions.Count; i++)
             s.Print(2, 3 + i, $"[{i + 1}]  {_rewardOptions[i].Label}", new Color(225, 215, 150));
-        s.Print(2, 7, "(1 / 2 / 3)", new Color(150, 150, 150));
+        s.Print(2, 7, "1/2/3 to pick   U/Esc to close", new Color(150, 150, 150));
         s.IsDirty = true;
     }
 
@@ -602,7 +617,7 @@ internal class RootScreen : ScreenSurface
     private void Descend()
     {
         _depth++;
-        _dungeon = new Dungeon(5, 5, MapWidth, MapHeight, _depth);
+        _dungeon = new Dungeon(5, 5, MapWidth, MapHeight, _depth, _difficulty);
         _px = MapWidth / 2; _py = MapHeight / 2;
         _player.X = MapWidth / 2; _player.Y = MapHeight / 2;
         _doorCooldown = 0.3;
@@ -667,21 +682,6 @@ internal class RootScreen : ScreenSurface
 
     private static Color Glow(Color c, int amt) =>
         new(Math.Min(255, c.R + amt), Math.Min(255, c.G + amt), Math.Min(255, c.B + amt));
-
-    // Regn ut hvor mye vi må flytte kartet inn for å sentrere det i vinduet.
-    private Point CenterOffset()
-    {
-        int tile = GameFonts.Tiles.GlyphWidth;                 // 32
-        int mapPxW = MapWidth * tile;
-        int mapPxH = (MapHeight + 1) * tile;                   // +1 rad til statuslinja
-
-        int winPxW = 104 * 8;   // SetWindowSizeInCells-bredde * 8
-        int winPxH = 34 * 16;   // høyde * 16
-
-        int ox = Math.Max(0, (winPxW - mapPxW) / 2);
-        int oy = Math.Max(0, (winPxH - mapPxH) / 2);
-        return new Point(ox, oy);
-    }
 
     private void DrawStatus()
     {
