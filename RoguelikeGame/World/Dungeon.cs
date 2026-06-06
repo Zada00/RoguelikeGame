@@ -13,6 +13,7 @@ internal class Dungeon
     private readonly Room[,] _rooms;
     private readonly Random _rng = new();
     private readonly DiffSettings _diff;
+    private Room? _stairsRoom;
 
     public int CurrentGridX { get; private set; }
     public int CurrentGridY { get; private set; }
@@ -49,7 +50,18 @@ internal class Dungeon
             }
 
         PlaceStairs();
+        SpawnBoss(depth);
         CurrentRoom.IsVisited = true;
+    }
+
+    private void SpawnBoss(int depth)
+    {
+        if (_stairsRoom == null) return;
+        int cx = RoomWidth / 2, cy = RoomHeight / 2;
+        var boss = Monster.RandomBoss(cx, cy, depth, _rng);
+        boss.Scale(_diff.StatMul);
+        _stairsRoom.Monsters.Add(boss);
+        _stairsRoom.HadMonsters = true;
     }
 
     private void PlaceStairs()
@@ -70,6 +82,7 @@ internal class Dungeon
                     && room.MonsterAt(x, y) == null && room.GetDoorAt(x, y) == null)
                 {
                     room.Stairs = new Point(x, y);
+                    _stairsRoom = room;
                     return;
                 }
             }

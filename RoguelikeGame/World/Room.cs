@@ -248,7 +248,7 @@ internal class Room
                 int x = rng.Next(1, Width - 1);
                 int y = rng.Next(1, Height - 1);
                 bool center = x == Width / 2 && y == Height / 2;
-                if (_tiles[x, y].IsWalkable && !center && MonsterAt(x, y) == null)
+                if (_tiles[x, y].IsWalkable && !center && !NearDoorEntry(x, y) && MonsterAt(x, y) == null)
                 {
                     var m = makers[rng.Next(makers.Count)](x, y, depth);
                     m.Scale(statMul);
@@ -261,7 +261,19 @@ internal class Room
         HadMonsters = Monsters.Count > 0;
     }
 
+    private bool NearDoorEntry(int x, int y)
+    {
+        int cx = Width / 2, cy = Height / 2;
+        if (HasDoorNorth && Math.Abs(x - cx) <= 1 && y <= 2) return true;
+        if (HasDoorSouth && Math.Abs(x - cx) <= 1 && y >= Height - 3) return true;
+        if (HasDoorWest && Math.Abs(y - cy) <= 1 && x <= 2) return true;
+        if (HasDoorEast && Math.Abs(y - cy) <= 1 && x >= Width - 3) return true;
+        return false;
+    }
+
     public Monster? MonsterAt(int x, int y) => Monsters.FirstOrDefault(m => m.X == x && m.Y == y);
+
+    public bool HasLivingBoss => Monsters.Any(m => m.IsBoss);
 
     public bool IsStairs(int x, int y) => Stairs.HasValue && Stairs.Value.X == x && Stairs.Value.Y == y;
 

@@ -12,10 +12,9 @@ internal class RootScreen : ScreenSurface
     private const int MapHeight = 14;
     private const double ManaRegen = 2.0;
 
-    private static readonly Color EnemyShotColor = new(255, 110, 80);
-
     private readonly ScreenSurface _status;
     private readonly ScreenSurface _notify;
+    private readonly ScreenSurface _bossBar;
     private readonly ScreenSurface _playerSurface;
     private readonly ScreenSurface _rewardPanel;
     private readonly List<ScreenSurface> _monsterViews = new();
@@ -33,6 +32,7 @@ internal class RootScreen : ScreenSurface
     private bool _dead;
     private double _hurtTimer;
     private double _fireCooldown;
+    private double _enterGrace;
 
     // oppgraderinger
     private int _bonusDamage;
@@ -83,6 +83,11 @@ internal class RootScreen : ScreenSurface
         _notify.Position = new Point(MapWidth * 32 - 22 * 8 - 4, 4);
         _notify.IsVisible = false;
         Children.Add(_notify);
+
+        _bossBar = new ScreenSurface(40, 1) { UsePixelPositioning = true };
+        _bossBar.Position = new Point((MapWidth * 32 - 40 * 8) / 2, 4);
+        _bossBar.IsVisible = false;
+        Children.Add(_bossBar);
 
         _dungeon = new Dungeon(5, 5, MapWidth, MapHeight, _depth, _difficulty);
         _player = new Player(character, MapWidth / 2, MapHeight / 2);
@@ -196,6 +201,7 @@ internal class RootScreen : ScreenSurface
 
         if (_doorCooldown > 0) _doorCooldown -= dt;
         if (_fireCooldown > 0) _fireCooldown -= dt;
+        if (_enterGrace > 0) _enterGrace -= dt;
 
         if (_fade != FadeState.None) { UpdateFade(dt); return; }
         if (!IsFocused) return;
@@ -207,9 +213,9 @@ internal class RootScreen : ScreenSurface
         // ---- bevegelse ----
         var kb = Game.Instance.Keyboard;
         double vx = 0, vy = 0;
-        if (kb.IsKeyDown(Keys.Up) || kb.IsKeyDown(Keys.W)) vy -= 1;
-        if (kb.IsKeyDown(Keys.Down) || kb.IsKeyDown(Keys.S)) vy += 1;
-        if (kb.IsKeyDown(Keys.Left) || kb.IsKeyDown(Keys.A)) vx -= 1;
+        if (kb.IsKeyDown(Keys.Up)    || kb.IsKeyDown(Keys.W)) vy -= 1;
+        if (kb.IsKeyDown(Keys.Down)  || kb.IsKeyDown(Keys.S)) vy += 1;
+        if (kb.IsKeyDown(Keys.Left)  || kb.IsKeyDown(Keys.A)) vx -= 1;
         if (kb.IsKeyDown(Keys.Right) || kb.IsKeyDown(Keys.D)) vx += 1;
 
         if (vx != 0 || vy != 0)
@@ -365,11 +371,11 @@ internal class RootScreen : ScreenSurface
 
         switch (c.Special)
         {
-            case Special.Blink: BlinkToMouse(); break;
+            case Special.Blink:     BlinkToMouse(); break;
             case Special.Whirlwind: RadialBurst(8, c.ShotSpeed, 0.5, Damage, new Color(245, 150, 70)); break;
-            case Special.Nova: RadialBurst(14, c.ShotSpeed, 0.7, Damage, new Color(130, 235, 140)); break;
-            case Special.Volley: Fan(baseAngle, 5, 28, c.ShotSpeed + 2, ShotLifeEff, Damage, new Color(150, 220, 90)); break;
-            case Special.Bash: Fan(baseAngle, 6, 70, c.ShotSpeed, 0.3, Damage + 2, new Color(150, 190, 235)); break;
+            case Special.Nova:      RadialBurst(14, c.ShotSpeed, 0.7, Damage, new Color(130, 235, 140)); break;
+            case Special.Volley:    Fan(baseAngle, 5, 28, c.ShotSpeed + 2, ShotLifeEff, Damage, new Color(150, 220, 90)); break;
+            case Special.Bash:      Fan(baseAngle, 6, 70, c.ShotSpeed, 0.3, Damage + 2, new Color(150, 190, 235)); break;
             case Special.HolyLight: _player.Hp = Math.Min(MaxHp, _player.Hp + 8); DrawStatus(); break;
         }
 
@@ -380,13 +386,13 @@ internal class RootScreen : ScreenSurface
 
     private static int SpecialCost(Special s) => s switch
     {
-        Special.Blink => 5,
+        Special.Blink     => 5,
         Special.Whirlwind => 4,
-        Special.Bash => 4,
-        Special.Volley => 4,
-        Special.Nova => 6,
+        Special.Bash      => 4,
+        Special.Volley    => 4,
+        Special.Nova      => 6,
         Special.HolyLight => 5,
-        _ => 0,
+        _                 => 0,
     };
 
     private void RadialBurst(int count, double speed, double life, int dmg, Color color)
@@ -442,10 +448,10 @@ internal class RootScreen : ScreenSurface
         AddBulletView(_px, _py, color);
     }
 
-    private void SpawnEnemyBullet(double sx, double sy, double vx, double vy, int damage, double life)
+    private void SpawnEnemyBullet(double sx, double sy, double vx, double vy, int damage, double life, Color color)
     {
-        _bullets.Add(new Bullet(sx, sy, vx, vy, damage, life, EnemyShotColor, true));
-        AddBulletView(sx, sy, EnemyShotColor);
+        _bullets.Add(new Bullet(sx, sy, vx, vy, damage, life, color, true));
+        AddBulletView(sx, sy, color);
     }
 
     private void AddBulletView(double fx, double fy, Color color)
@@ -532,16 +538,17 @@ internal class RootScreen : ScreenSurface
             var m = monsters[i];
             dmg += m.UpdateRealtime(dt, _px, _py, _playerVx, _playerVy, room);
 
-            if (m.HasPendingShot)
-                SpawnEnemyBullet(m.Fx, m.Fy,
-                    m.PendingShotDx * m.ShotSpeed, m.PendingShotDy * m.ShotSpeed,
-                    Math.Max(1, m.Attack), 3.0);
+            foreach (var (sdx, sdy) in m.PendingShots)
+                SpawnEnemyBullet(m.Fx, m.Fy, sdx * m.ShotSpeed, sdy * m.ShotSpeed,
+                    Math.Max(1, m.Attack), 3.0, m.BulletColor);
 
             _monsterViews[i].Position = new Point(
                 (int)Math.Round(m.Fx * tile), (int)Math.Round(m.Fy * tile));
         }
 
-        if (dmg > 0)
+        UpdateBossBar();
+
+        if (dmg > 0 && _enterGrace <= 0)
         {
             _player.Hp -= dmg;
             _hurtTimer = 0.12;
@@ -563,7 +570,7 @@ internal class RootScreen : ScreenSurface
         int cy = (int)Math.Round(_py);
         _player.X = cx; _player.Y = cy;
 
-        if (room.IsStairs(cx, cy)) { Descend(); return; }
+        if (room.IsStairs(cx, cy) && !room.HasLivingBoss) { Descend(); return; }
 
         if (_doorCooldown <= 0)
         {
@@ -605,6 +612,7 @@ internal class RootScreen : ScreenSurface
                 _fade = FadeState.In;
                 _fadeTimer = 0;
                 _doorCooldown = 0.3;
+                _enterGrace = 0.5;
             }
         }
         else
@@ -678,6 +686,28 @@ internal class RootScreen : ScreenSurface
         _dungeon.CurrentRoom.Render(Surface);
         Surface.IsDirty = true;
         DrawStatus();
+        UpdateBossBar();
+    }
+
+    private void UpdateBossBar()
+    {
+        Monster? boss = null;
+        foreach (var m in _dungeon.CurrentRoom.Monsters)
+            if (m.IsBoss) { boss = m; break; }
+
+        var s = _bossBar.Surface;
+        if (boss == null) { _bossBar.IsVisible = false; s.Clear(); s.IsDirty = true; return; }
+
+        s.DefaultBackground = new Color(30, 12, 16);
+        s.Clear();
+        int barLen = 22;
+        double frac = Math.Clamp(boss.Hp / (double)boss.MaxHp, 0, 1);
+        int filled = (int)Math.Round(barLen * frac);
+        string bar = new string('=', filled) + new string('-', barLen - filled);
+        s.Print(1, 0, boss.Name, new Color(255, 160, 130));
+        s.Print(1 + boss.Name.Length + 1, 0, bar, new Color(255, 90, 80));
+        _bossBar.IsVisible = true;
+        s.IsDirty = true;
     }
 
     private static Color Glow(Color c, int amt) =>

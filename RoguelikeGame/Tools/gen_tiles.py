@@ -500,6 +500,50 @@ statue_top(32)
 statue_bottom(33)
 crack(34)
 
+# ---- bosser ----
+# 35 Warden - pansret kjempe (ring-mønster)
+def boss_warden(i):
+    body = (155, 62, 56, 255)
+    ellipse(i, 4, 30, 27, 31, (0, 0, 0, 80))
+    shaded(i, 6, 11, 25, 29, body, 16, 22)
+    rect(i, 7, 10, 24, 13, darken(body, 16))
+    d.polygon([(org(i)[0] + 6, org(i)[1] + 11), (org(i)[0] + 1, org(i)[1] + 2), (org(i)[0] + 11, org(i)[1] + 9)], fill=(205, 205, 212, 255))
+    d.polygon([(org(i)[0] + 25, org(i)[1] + 11), (org(i)[0] + 30, org(i)[1] + 2), (org(i)[0] + 20, org(i)[1] + 9)], fill=(205, 205, 212, 255))
+    ellipse(i, 10, 13, 21, 23, (28, 18, 20, 255))
+    put(i, 13, 17, (255, 210, 60, 255))
+    put(i, 18, 17, (255, 210, 60, 255))
+    outline_tile(i)
+
+# 36 Hive - grønn klump (spiral-mønster)
+def boss_hive(i):
+    body = (92, 162, 82, 255)
+    ellipse(i, 5, 30, 26, 31, (0, 0, 0, 80))
+    ellipse(i, 4, 8, 27, 29, body)
+    ellipse(i, 8, 12, 16, 20, darken(body, 22))
+    ellipse(i, 17, 13, 24, 21, darken(body, 22))
+    ellipse(i, 12, 20, 20, 27, darken(body, 22))
+    put(i, 11, 15, (240, 255, 180, 255))
+    put(i, 20, 16, (240, 255, 180, 255))
+    put(i, 15, 23, (240, 255, 180, 255))
+    outline_tile(i)
+
+# 37 Overseer - stort lilla oye (sikter mot deg)
+def boss_overseer(i):
+    body = (122, 82, 172, 255)
+    ellipse(i, 5, 30, 26, 31, (0, 0, 0, 80))
+    for px in (9, 16, 23):
+        d.polygon([(org(i)[0] + px - 3, org(i)[1] + 9), (org(i)[0] + px, org(i)[1] + 1), (org(i)[0] + px + 3, org(i)[1] + 9)], fill=darken(body, 12))
+    ellipse(i, 5, 8, 26, 28, body)
+    ellipse(i, 9, 12, 22, 24, (235, 235, 245, 255))
+    ellipse(i, 12, 14, 19, 21, (150, 70, 210, 255))
+    ellipse(i, 14, 16, 17, 19, (20, 15, 28, 255))
+    put(i, 15, 17, (255, 255, 255, 255))
+    outline_tile(i)
+
+boss_warden(35)
+boss_hive(36)
+boss_overseer(37)
+
 sheet.save("/home/claude/tiles.png")
 print("tiles.png:", sheet.size)
 

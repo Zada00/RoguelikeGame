@@ -1,3 +1,5 @@
+using SadRogue.Primitives;
+
 namespace RoguelikeGame;
 
 internal class Monster
@@ -29,14 +31,20 @@ internal class Monster
     public bool KeepsDistance { get; }
     private double _shootCooldown;
 
-    public bool HasPendingShot { get; private set; }
-    public double PendingShotDx { get; private set; }
-    public double PendingShotDy { get; private set; }
+    // ---- boss ----
+    public bool IsBoss { get; }
+    public int Pattern { get; }            // 0 ring, 1 spiral, 2 aimed fan
+    public Color BulletColor { get; }
+    private double _spiralAngle;
+
+    // settes hver tick: én eller flere skudd-retninger
+    public readonly List<(double dx, double dy)> PendingShots = new();
 
     public Monster(string name, int tileIndex, int maxHp, int attack, int defense,
                    double speed, double aggroRange, double attackInterval, int x, int y,
                    bool canShoot = false, double shootInterval = 0, double shotSpeed = 0,
-                   double shootRange = 0, bool predictive = false, bool keepsDistance = false)
+                   double shootRange = 0, bool predictive = false, bool keepsDistance = false,
+                   bool isBoss = false, int pattern = 0, Color? bulletColor = null)
     {
         Name = name;
         TileIndex = tileIndex;
@@ -55,9 +63,11 @@ internal class Monster
         ShootRange = shootRange;
         Predictive = predictive;
         KeepsDistance = keepsDistance;
+        IsBoss = isBoss;
+        Pattern = pattern;
+        BulletColor = bulletColor ?? new Color(255, 110, 80);
     }
 
-    // Skaler HP og skade etter vanskelighetsgrad.
     public void Scale(double mul)
     {
         MaxHp = Math.Max(1, (int)Math.Round(MaxHp * mul));
@@ -86,9 +96,31 @@ internal class Monster
                canShoot: true, shootInterval: 1.8, shotSpeed: 9, shootRange: 11,
                predictive: true, keepsDistance: true);
 
+    // Tilfeldig boss, skalert med dybde.
+    public static Monster RandomBoss(int x, int y, int depth, Random rng)
+    {
+        int hp = 40 + (depth - 1) * 14;
+        int atk = 3 + (depth - 1);
+
+        Monster b = rng.Next(3) switch
+        {
+            0 => new("Warden", Glyph.BossWarden, hp, atk, 2, 1.5, 9999, 0.9, x, y,
+                     canShoot: true, shootInterval: 1.7, shotSpeed: 6.5, shootRange: 9999,
+                     isBoss: true, pattern: 0, bulletColor: new Color(255, 120, 90)),
+            1 => new("Hive", Glyph.BossHive, hp + 10, atk, 2, 1.3, 9999, 0.9, x, y,
+                     canShoot: true, shootInterval: 1.4, shotSpeed: 6.0, shootRange: 9999,
+                     isBoss: true, pattern: 1, bulletColor: new Color(150, 230, 120)),
+            _ => new("Overseer", Glyph.BossOverseer, hp, atk + 1, 1, 1.7, 9999, 0.9, x, y,
+                     canShoot: true, shootInterval: 1.1, shotSpeed: 8.0, shootRange: 9999,
+                     isBoss: true, pattern: 2, bulletColor: new Color(190, 130, 255)),
+        };
+        b.Awake = true;
+        return b;
+    }
+
     public int UpdateRealtime(double dt, double pfx, double pfy, double pvx, double pvy, Room room)
     {
-        HasPendingShot = false;
+        PendingShots.Clear();
         if (_attackCooldown > 0) _attackCooldown -= dt;
         if (_shootCooldown > 0) _shootCooldown -= dt;
 
@@ -114,40 +146,90 @@ internal class Monster
         double ux = dist > 0.001 ? dx / dist : 0;
         double uy = dist > 0.001 ? dy / dist : 0;
 
-        if (CanShoot && KeepsDistance)
+        if (IsBoss)
         {
-            const double minR = 4.0, maxR = 7.0;
-            if (dist < minR) MoveBy(-ux * step, -uy * step, room);
-            else if (dist > maxR) MoveBy(ux * step, uy * step, room);
-        }
-        else if (dist >= 0.9)
-        {
-            MoveBy(ux * step, uy * step, room);
-        }
-
-        if (CanShoot && _shootCooldown <= 0 && dist <= ShootRange)
-        {
-            double tx = pfx, ty = pfy;
-            if (Predictive && ShotSpeed > 0.001)
+            if (dist > 1.5) MoveBy(ux * step, uy * step, room);   // sakte jakt
+            if (CanShoot && _shootCooldown <= 0)
             {
-                double lead = dist / ShotSpeed;
-                tx = pfx + pvx * lead;
-                ty = pfy + pvy * lead;
-            }
-            double sdx = tx - Fx, sdy = ty - Fy;
-            double sl = Math.Sqrt(sdx * sdx + sdy * sdy);
-            if (sl > 0.001)
-            {
-                PendingShotDx = sdx / sl;
-                PendingShotDy = sdy / sl;
-                HasPendingShot = true;
+                EmitBossPattern(ux, uy);
                 _shootCooldown = ShootInterval;
+            }
+        }
+        else
+        {
+            if (CanShoot && KeepsDistance)
+            {
+                const double minR = 4.0, maxR = 7.0;
+                if (dist < minR) MoveBy(-ux * step, -uy * step, room);
+                else if (dist > maxR) MoveBy(ux * step, uy * step, room);
+            }
+            else if (dist >= 0.9)
+            {
+                MoveBy(ux * step, uy * step, room);
+            }
+
+            if (CanShoot && _shootCooldown <= 0 && dist <= ShootRange)
+            {
+                double tx = pfx, ty = pfy;
+                if (Predictive && ShotSpeed > 0.001)
+                {
+                    double lead = dist / ShotSpeed;
+                    tx = pfx + pvx * lead;
+                    ty = pfy + pvy * lead;
+                }
+                double sdx = tx - Fx, sdy = ty - Fy;
+                double sl = Math.Sqrt(sdx * sdx + sdy * sdy);
+                if (sl > 0.001)
+                {
+                    PendingShots.Add((sdx / sl, sdy / sl));
+                    _shootCooldown = ShootInterval;
+                }
             }
         }
 
         X = (int)Math.Round(Fx);
         Y = (int)Math.Round(Fy);
         return contact;
+    }
+
+    private void EmitBossPattern(double aimx, double aimy)
+    {
+        switch (Pattern)
+        {
+            case 0: // ring
+            {
+                int n = 12;
+                for (int i = 0; i < n; i++)
+                {
+                    double a = i * (2 * Math.PI / n);
+                    PendingShots.Add((Math.Cos(a), Math.Sin(a)));
+                }
+                break;
+            }
+            case 1: // spiral
+            {
+                int n = 10;
+                for (int i = 0; i < n; i++)
+                {
+                    double a = _spiralAngle + i * (2 * Math.PI / n);
+                    PendingShots.Add((Math.Cos(a), Math.Sin(a)));
+                }
+                _spiralAngle += 0.5;
+                break;
+            }
+            default: // sikter mot deg, vifte
+            {
+                double baseA = Math.Atan2(aimy, aimx);
+                int n = 5;
+                double spread = 0.5;
+                for (int i = 0; i < n; i++)
+                {
+                    double a = baseA + (i - (n - 1) / 2.0) * (spread / (n - 1));
+                    PendingShots.Add((Math.Cos(a), Math.Sin(a)));
+                }
+                break;
+            }
+        }
     }
 
     private void MoveBy(double mx, double my, Room room)

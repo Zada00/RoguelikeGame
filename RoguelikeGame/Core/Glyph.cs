@@ -18,4 +18,6 @@ internal static class Glyph
                      Cultist = 28, Seer = 29;
 
     public const int Water = 30, Crate = 31, StatueTop = 32, StatueBottom = 33, Crack = 34;
+
+    public const int BossWarden = 35, BossHive = 36, BossOverseer = 37;
 }
